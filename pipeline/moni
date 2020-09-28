@@ -64,7 +64,7 @@ class PFPthresholds(threading.Thread):
 
       start = time.time()
       parse_size = os.path.getsize(args.input+".parse")/4
-      dictionary_size = os.path.getsize(args.input+".dicz")
+      dictionary_size = os.path.getsize(args.input+".dict")
 
       if(parse_size >=  (2**31-1) or dictionary_size >=  (2**31-4) ):
         command = "{exe} {file} -w {wsize}".format(
