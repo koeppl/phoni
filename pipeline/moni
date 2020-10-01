@@ -3,6 +3,7 @@
 # Edited from bigbwt script file
 
 import sys, time, argparse, subprocess, os.path, threading, tempfile
+from psutil import virtual_memory
 
 Description = """
 Tool to build the BWT and the Thresholds for higly repetive files using the approach
@@ -99,6 +100,10 @@ class bigrepair(threading.Thread):
       logfile_name = args.logfile_name
       print("{} bigrepair started!".format(self.getName()))        # "Thread-x started!"
 
+      mem = virtual_memory()
+      repair_mem  = round(mem.total / 1024 / 1024) # total physical memory available
+      print("RePair maximum memory: {}".format(repair_mem))
+
       sstart = time.time()
       # ---- compress the dictionary 
       start = time.time()
@@ -126,11 +131,11 @@ class bigrepair(threading.Thread):
       # ---- apply repair to the modified dictionary
       start = time.time()
       # if args.m==0:     
-      command = "{exe} {file}.dicz.int".format(
-              exe = os.path.join(bigrepair_dirname,repair_exe), file=args.input)
+        # command = "{exe} {file}.dicz.int".format(
+        #         exe = os.path.join(bigrepair_dirname,repair_exe), file=args.input)
       # else:
-      #   command = "{exe} {file}.dicz.int {mb}".format(mb=args.m,
-      #           exe = os.path.join(bigrepair_dirname,largerepair_exe), file=args.input)
+      command = "{exe} {file}.dicz.int {mb}".format(mb=repair_mem,
+              exe = os.path.join(bigrepair_dirname,largerepair_exe), file=args.input)
       print("==== Repair dictionary.\nCommand:", command)
       if(execute_command(command,logfile,logfile_name)!=True):
        return
@@ -140,11 +145,11 @@ class bigrepair(threading.Thread):
       # ---- apply repair to the parse     
       start = time.time()
       # if args.m==0:     
-      command = "{exe} {file}.parse".format(
-              exe = os.path.join(bigrepair_dirname,repair_exe), file=args.input)
+        # command = "{exe} {file}.parse".format(
+        #         exe = os.path.join(bigrepair_dirname,repair_exe), file=args.input)
       # else:
-      #   command = "{exe} {file}.parse {mb}".format(mb=args.m,
-      #           exe = os.path.join(bigrepair_dirname,largerepair_exe), file=args.input)
+      command = "{exe} {file}.parse {mb}".format(mb=repair_mem,
+              exe = os.path.join(bigrepair_dirname,largerepair_exe), file=args.input)
       print("==== Repair parse.\nCommand:", command)
       if(execute_command(command,logfile,logfile_name)!=True):
        return
@@ -246,6 +251,9 @@ def main():
   if args.f and args.t > 0 and (".fq" in args.input or ".fastq" in args.input or ".fnq" in args.input):
     print("moni does not current support FASTQ format! Exiting...")
     return
+
+
+
 
   
 
