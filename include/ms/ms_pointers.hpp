@@ -222,6 +222,7 @@ public:
         size_t m = pattern.size();
 
         std::vector<size_t> ms_pointers(m);
+        std::vector<size_t> my_refs(m,0);
         std::vector<size_t> ms_lengths(m,1);
         std::vector<size_t> debug_lengths(m,1);
 
@@ -230,12 +231,14 @@ public:
         {
             const ri::ulint run_of_j = this->bwt.run_of_position(pos);
             ms_pointers[m-1] = samples_start[run_of_j];
+            my_refs[m-1] = samples_start[run_of_j];
             assert(slp.charAt(ms_pointers[m-1]) == pattern[m-1]);
+            assert(slp.charAt(my_refs[m-1]) == pattern[m-1]);
             ms_lengths[m-1] = 1;
             debug_lengths[m-1] = 1;
         }
         auto sample = ms_pointers[m-1]; 
-        pos = LF(pos, pattern[m-2]);
+        pos = LF(pos, pattern[m-1]);
 
         for (size_t i = 1; i < pattern.size(); ++i)
         {
@@ -247,6 +250,7 @@ public:
                 ms_lengths[m-i-1] = 0;
                 debug_lengths[m-i-1] = 0;
                 std::cout << "2 letter " << c  << " not found for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
+                my_refs[m - i - 1] = 0;
             } 
             else if (pos < this->bwt.size() && this->bwt[pos] == c)
             {
@@ -255,6 +259,17 @@ public:
                 ms_lengths[m-i-1] = ms_lengths[m-i]+1;
                 debug_lengths[m-i-1] = debug_lengths[m-i]+1;
                 std::cout << "0 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
+
+                my_refs[m - i - 1] = my_refs[m - i]-1;
+                // {//assert
+                //     const ri::ulint run = this->bwt.run_of_position(pos);
+                //     const size_t textposStart = this->samples_start[run];
+                //     const size_t textposLast = this->samples_last[run];
+                //     const size_t lenLast = lceToR(slp, textposLast+1, my_refs[m-i]);
+                //     const size_t lenStart = lceToR(slp, textposStart+1, my_refs[m-i]);
+                //     const size_t lenMax = std::max(lenStart, lenLast);
+                //     assert(lenMax >= ms_lengths[m-i-1]);
+                // }
             }
             else
             {
@@ -262,27 +277,40 @@ public:
                     const ri::ulint rank = this->bwt.rank(pos, c);
                     size_t len0 = 0;
                     size_t len1 = 0;
+                    size_t ref0 = 0;
+                    size_t ref1 = 0;
 
                     //TODO: should check that rank > 0, since select(0) should throw an exception!
                     if(rank < this->bwt.number_of_letter(c)) {
                         const ri::ulint sa1 = this->bwt.select(rank, c);
                         const ri::ulint run1 = this->bwt.run_of_position(sa1);
-                        const size_t textpos1 = this->samples_start[run1];
-                        const size_t textpos2 = this->samples_last[run1];
-                        len1 = lceToR(slp, textpos1+1, ms_pointers[m-i]);
-                        len1 = std::max(len1, lceToR(slp, textpos2+1, ms_pointers[m-i]));
+                        const size_t textposStart = this->samples_start[run1];
+                        const size_t textposLast = this->samples_last[run1];
+                        const size_t lenStart = lceToR(slp, textposStart+1, my_refs[m-i]);
+                        const size_t lenLast = lceToR(slp, textposLast+1, my_refs[m-i]);
+                        assert(lenStart >= lenLast);
+                        ref1 = textposStart;
+                        len1 = lenStart;
+                        // len1 = lceToR(slp, textpos1+1, my_refs[m-i]);
+                        // len1 = std::max(len1, lceToR(slp, textpos2+1, my_refs[m-i]));
+                        // ref = lceToR(slp, textpos1+1, my_refs[m-i]) < 
                     }
                     if(rank > 0) {
                         const ri::ulint sa0 = this->bwt.select(rank-1, c);
                         const ri::ulint run0 = this->bwt.run_of_position(sa0);
-                        const size_t textpos0 = this->samples_last[run0];
-                        len0 = lceToR(slp, textpos0+1, ms_pointers[m-i]);
-                        const size_t textpos2 = this->samples_start[run0];
-                        len1 = std::max(len0, lceToR(slp, textpos2+1, ms_pointers[m-i]));
+
+                        const size_t textposStart = this->samples_start[run0];
+                        const size_t textposLast = this->samples_last[run0];
+                        const size_t lenStart = lceToR(slp, textposStart+1, my_refs[m-i]);
+                        const size_t lenLast = lceToR(slp, textposLast+1, my_refs[m-i]);
+                        assert(lenStart <= lenLast);
+                        ref0 = textposLast;
+                        len0 = lenLast;
                     }
                     ms_lengths[m-i-1] = 1 + std::min(ms_lengths[m-i],std::max(len1,len0));
+                    my_refs[m-i-1] = (len0 > len1) ? ref0 : ref1;
                     // assert(ms_lengths[m-i-1] > 0);
-                    std::cout << "1 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
+                    std::cout << "1 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << " with LCE " << std::max(len1,len0) << std::endl;
                 }
 
 
