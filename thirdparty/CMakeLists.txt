@@ -188,7 +188,7 @@ endif()
 ## Add pfp-thresholds
 FetchContent_Declare(
   pfp_thresholds
-  GIT_REPOSITORY https://github.com/maxrossi91/pfp-thresholds.git
+  GIT_REPOSITORY git@github.com:maxrossi91/pfp-thresholds.git
   GIT_TAG develop
   )
   

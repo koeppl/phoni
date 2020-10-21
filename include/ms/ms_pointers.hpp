@@ -35,13 +35,39 @@
 
 #include<ms_rle_string.hpp>
 
+#include "PlainSlp.hpp"
+#include "PoSlp.hpp"
+#include "ShapedSlp_Status.hpp"
+#include "ShapedSlp.hpp"
+#include "ShapedSlpV2.hpp"
+#include "SelfShapedSlp.hpp"
+#include "SelfShapedSlpV2.hpp"
+#include "DirectAccessibleGammaCode.hpp"
+#include "IncBitLenCode.hpp"
+#include "FixedBitLenCode.hpp"
+#include "SelectType.hpp"
+#include "VlcVec.hpp"
+
+using var_t = uint32_t;
+using Fblc = FixedBitLenCode<>;
+using SelSd = SelectSdvec<>;
+using SelMcl = SelectMcl<>;
+using DagcSd = DirectAccessibleGammaCode<SelSd>;
+using DagcMcl = DirectAccessibleGammaCode<SelMcl>;
+using Vlc64 = VlcVec<sdsl::coder::elias_delta, 64>;
+using Vlc128 = VlcVec<sdsl::coder::elias_delta, 128>;
+
+
 template <class sparse_bv_type = ri::sparse_sd_vector,
-          class rle_string_t = ms_rle_string_sd>
+          class rle_string_t = ms_rle_string_sd,
+          class SlpT = SelfShapedSlp<var_t, DagcSd, DagcSd, SelSd>
+          >
 class ms_pointers : ri::r_index<sparse_bv_type, rle_string_t>
 {
 public:
 
     std::vector<size_t> thresholds;
+    SlpT slp;
 
     // std::vector<ulint> samples_start;
     int_vector<> samples_start;
@@ -108,6 +134,15 @@ public:
         verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
 
 
+        {
+            verbose("Load Grammar");
+            std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
+            ifstream fs(filename + ".slp");
+            slp.load(fs);
+            std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
+            verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
+        }
+
 
         verbose("Reading thresholds from file");
 
@@ -126,7 +161,7 @@ public:
             error("stat() file " + tmp_filename + " failed");
 
         if (filestat.st_size % THRBYTES != 0)
-            error("invilid file " + tmp_filename);
+            error("invalid file " + tmp_filename);
 
         size_t length = filestat.st_size / THRBYTES;
         thresholds.resize(length);
@@ -187,25 +222,71 @@ public:
         size_t m = pattern.size();
 
         std::vector<size_t> ms_pointers(m);
+        std::vector<size_t> ms_lengths(m,1);
+        std::vector<size_t> debug_lengths(m,1);
 
         // Start with the empty string
-        auto pos = this->bwt_size() - 1;
-        auto sample = this->get_last_run_sample();
+        auto pos = this->bwt.select(1, pattern[m-1]);
+        {
+            const ri::ulint run_of_j = this->bwt.run_of_position(pos);
+            ms_pointers[m-1] = samples_start[run_of_j];
+            assert(slp.charAt(ms_pointers[m-1]) == pattern[m-1]);
+            ms_lengths[m-1] = 1;
+            debug_lengths[m-1] = 1;
+        }
+        auto sample = ms_pointers[m-1]; 
+        pos = LF(pos, pattern[m-2]);
 
-        for (size_t i = 0; i < pattern.size(); ++i)
+        for (size_t i = 1; i < pattern.size(); ++i)
         {
             auto c = pattern[m - i - 1];
 
             if (this->bwt.number_of_letter(c) == 0)
             {
                 sample = 0;
+                ms_lengths[m-i-1] = 0;
+                debug_lengths[m-i-1] = 0;
+                std::cout << "2 letter " << c  << " not found for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
             } 
             else if (pos < this->bwt.size() && this->bwt[pos] == c)
             {
                 sample--;
+                assert(i != 0);
+                ms_lengths[m-i-1] = ms_lengths[m-i]+1;
+                debug_lengths[m-i-1] = debug_lengths[m-i]+1;
+                std::cout << "0 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
             }
             else
             {
+                {
+                    const ri::ulint rank = this->bwt.rank(pos, c);
+                    size_t len0 = 0;
+                    size_t len1 = 0;
+
+                    //TODO: should check that rank > 0, since select(0) should throw an exception!
+                    if(rank < this->bwt.number_of_letter(c)) {
+                        const ri::ulint sa1 = this->bwt.select(rank, c);
+                        const ri::ulint run1 = this->bwt.run_of_position(sa1);
+                        const size_t textpos1 = this->samples_start[run1];
+                        const size_t textpos2 = this->samples_last[run1];
+                        len1 = lceToR(slp, textpos1+1, ms_pointers[m-i]);
+                        len1 = std::max(len1, lceToR(slp, textpos2+1, ms_pointers[m-i]));
+                    }
+                    if(rank > 0) {
+                        const ri::ulint sa0 = this->bwt.select(rank-1, c);
+                        const ri::ulint run0 = this->bwt.run_of_position(sa0);
+                        const size_t textpos0 = this->samples_last[run0];
+                        len0 = lceToR(slp, textpos0+1, ms_pointers[m-i]);
+                        const size_t textpos2 = this->samples_start[run0];
+                        len1 = std::max(len0, lceToR(slp, textpos2+1, ms_pointers[m-i]));
+                    }
+                    ms_lengths[m-i-1] = 1 + std::min(ms_lengths[m-i],std::max(len1,len0));
+                    // assert(ms_lengths[m-i-1] > 0);
+                    std::cout << "1 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
+                }
+
+
+
                 // Get threshold
                 ri::ulint rnk = this->bwt.rank(pos, c);
                 size_t thr = this->bwt.size() + 1;
@@ -223,7 +304,7 @@ public:
 
                     // Here we should use Phi_inv that is not implemented yet
                     // sample = this->Phi(this->samples_last[run_of_j - 1]) - 1;
-                    sample = samples_start[run_of_j] - 1;
+                    sample = samples_start[run_of_j];
 
                     next_pos = j;
                 }
@@ -234,14 +315,17 @@ public:
                     rnk--;
                     ri::ulint j = this->bwt.select(rnk, c);
                     ri::ulint run_of_j = this->bwt.run_of_position(j);
-                    sample = this->samples_last[run_of_j] - 1;
+                    sample = this->samples_last[run_of_j];
 
                     next_pos = j;
                 }
-
                 pos = next_pos;
             }
 
+            {
+                debug_lengths[m-i-1] = 1+std::min(lceToR(slp, sample+1, ms_pointers[m-i]), debug_lengths[m-i]);
+                    std::cout << "4 Len for " << (m-i-1) << " : " << debug_lengths[m-i-1] << std::endl;
+            }
             ms_pointers[m-i-1] = sample;
 
             // Perform one backward step
