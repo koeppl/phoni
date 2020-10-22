@@ -30,10 +30,6 @@
 
 #include <malloc_count.h>
 
-#include <SelfShapedSlp.hpp>
-#include <DirectAccessibleGammaCode.hpp>
-#include <SelectType.hpp>
-
 typedef std::pair<std::string, std::vector<uint8_t>> pattern_t;
 
 std::vector<pattern_t> read_patterns(std::string filename)
@@ -78,15 +74,9 @@ std::vector<pattern_t> read_patterns(std::string filename)
   return patterns;
 }
 
-int main(int argc, char *const argv[])
-{
-  using SelSd = SelectSdvec<>;
-  using DagcSd = DirectAccessibleGammaCode<SelSd>;
-
+int main(int argc, char *const argv[]) {
   Args args;
   parseArgs(argc, argv, args);
-
-  // Building the r-index
 
   verbose("Building the matching statistics index");
   std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
@@ -94,23 +84,6 @@ int main(int argc, char *const argv[])
   ms_pointers<> ms(args.filename);
 
   std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
-
-  verbose("Matching statistics index construction complete");
-  verbose("Memory peak: ", malloc_count_peak());
-  verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
-
-  verbose("Building random access");
-  t_insert_start = std::chrono::high_resolution_clock::now();
-
-  // pfp_ra ra(args.filename, args.w);
-  std::string filename_slp = args.filename + ".slp";
-  SelfShapedSlp<uint32_t, DagcSd, DagcSd, SelSd> ra;
-  ifstream fs(filename_slp);
-  ra.load(fs);
-
-  size_t n = ra.getLen();
-
-      t_insert_end = std::chrono::high_resolution_clock::now();
 
   verbose("Matching statistics index construction complete");
   verbose("Memory peak: ", malloc_count_peak());
@@ -139,34 +112,18 @@ int main(int argc, char *const argv[])
     error("open() file " + std::string(args.filename) + ".lengths failed");
 
   for (auto pattern : patterns) {
-    auto lengths = ms.query(pattern.second);
+   f_lengths << pattern.first << endl;
+    auto [lengths,refs] = ms.query(pattern.second);
     for(const auto& length : lengths) {
       f_lengths << length << " ";
     }
     f_lengths << endl;
+
+    f_pointers << pattern.first << endl;
+    for (auto elem : refs)
+      f_pointers << elem << " ";
+    f_pointers << endl;
   }
-  //   std::vector<size_t> lengths(pointers.size());
-  //   size_t l = 0;
-  //   for (size_t i = 0; i < pointers.size(); ++i)
-  //   {
-  //     size_t pos = pointers[i];
-  //     while ((i + l) < pattern.second.size() && (pos + l) < n && pattern.second[i + l] == ra.charAt(pos + l))
-  //       ++l;
-  //
-  //     lengths[i] = l;
-  //     l = (l == 0 ? 0 : (l - 1));
-  //   }
-  //
-  //   f_pointers << pattern.first << endl;
-  //   for (auto elem : pointers)
-  //     f_pointers << elem << " ";
-  //   f_pointers << endl;
-  //
-  //   f_lengths << pattern.first << endl;
-  //   for (auto elem : lengths)
-  //     f_lengths << elem << " ";
-  //   f_lengths << endl;
-  // }
 
   f_pointers.close();
   f_lengths.close();

@@ -24,6 +24,45 @@
 #ifndef _MS_POINTERS_HH
 #define _MS_POINTERS_HH
 
+#ifdef MORE_DEBUG
+#define ON_DEBUG(x) x
+#else
+#define ON_DEBUG(x)
+#endif
+
+
+#ifndef DCHECK_HPP
+#define DCHECK_HPP
+#include <string>
+#include <sstream>
+#include <stdexcept>
+
+#ifndef DCHECK
+#ifdef NDEBUG
+#define DCHECK_(x,y,z)
+#define DCHECK(x) 
+#define DCHECK_EQ(x, y) 
+#define DCHECK_NE(x, y) 
+#define DCHECK_LE(x, y) 
+#define DCHECK_LT(x, y) 
+#define DCHECK_GE(x, y) 
+#define DCHECK_GT(x, y) 
+#else//NDEBUG
+#define DCHECK_(x,y,z) \
+  if (!(x)) throw std::runtime_error(std::string(" in file ") + __FILE__ + ':' + std::to_string(__LINE__) + (" the check failed: " #x) + ", we got " + std::to_string(y) + " vs " + std::to_string(z))
+#define DCHECK(x) \
+  if (!(x)) throw std::runtime_error(std::string(" in file ") + __FILE__ + ':' + std::to_string(__LINE__) + (" the check failed: " #x))
+#define DCHECK_EQ(x, y) DCHECK_((x) == (y), x,y)
+#define DCHECK_NE(x, y) DCHECK_((x) != (y), x,y)
+#define DCHECK_LE(x, y) DCHECK_((x) <= (y), x,y)
+#define DCHECK_LT(x, y) DCHECK_((x) < (y) ,x,y)
+#define DCHECK_GE(x, y) DCHECK_((x) >= (y),x,y )
+#define DCHECK_GT(x, y) DCHECK_((x) > (y) ,x,y)
+#endif //NDEBUG
+#endif //DCHECK
+#endif /* DCHECK_HPP */
+
+
 #include <common.hpp>
 
 #include <malloc_count.h>
@@ -66,7 +105,7 @@ class ms_pointers : ri::r_index<sparse_bv_type, rle_string_t>
 {
 public:
 
-    std::vector<size_t> thresholds;
+    // std::vector<size_t> thresholds;
     SlpT slp;
 
     // std::vector<ulint> samples_start;
@@ -108,8 +147,8 @@ public:
         // this->bwt = rle_string_t(istring);
 
         this->r = this->bwt.number_of_runs();
-        ri::ulint n = this->bwt.size();
-        int log_r = bitsize(uint64_t(this->r));
+        // ri::ulint n = this->bwt.size();
+        // int log_r = bitsize(uint64_t(this->r));
         int log_n = bitsize(uint64_t(this->bwt.size()));
 
         verbose("Number of BWT equal-letter runs: r = " , this->r);
@@ -137,47 +176,15 @@ public:
 
         {
             verbose("Load Grammar");
-            std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
+            t_insert_start = std::chrono::high_resolution_clock::now();
+
             ifstream fs(filename + ".slp");
             slp.load(fs);
-            std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
+
+            t_insert_end = std::chrono::high_resolution_clock::now();
+            verbose("Memory peak: ", malloc_count_peak());
             verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
         }
-
-
-        verbose("Reading thresholds from file");
-
-        t_insert_start = std::chrono::high_resolution_clock::now();
-
-        std::string tmp_filename = filename + std::string(".thr_pos");
-
-        struct stat filestat;
-        FILE *fd;
-
-        if ((fd = fopen(tmp_filename.c_str(), "r")) == nullptr)
-            error("open() file " + tmp_filename + " failed");
-
-        int fn = fileno(fd);
-        if (fstat(fn, &filestat) < 0)
-            error("stat() file " + tmp_filename + " failed");
-
-        if (filestat.st_size % THRBYTES != 0)
-            error("invalid file " + tmp_filename);
-
-        size_t length = filestat.st_size / THRBYTES;
-        thresholds.resize(length);
-
-        for(size_t i = 0; i < length; ++i )
-            if ((fread(&thresholds[i], THRBYTES, 1, fd)) != 1)
-                error("fread() file " + tmp_filename + " failed");
-
-        fclose(fd);
-
-        t_insert_end = std::chrono::high_resolution_clock::now();
-
-        verbose("Memory peak: ", malloc_count_peak());
-        verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
-
     }
 
     void read_samples(std::string filename, ulint r, int log_n, int_vector<> &samples)
@@ -218,151 +225,91 @@ public:
     }
 
     // Computes the matching statistics pointers for the given pattern
-    std::vector<size_t> query(const std::vector<uint8_t>& pattern)
-    {
+    std::pair<std::vector<size_t>, std::vector<size_t>> query(const std::vector<uint8_t>& pattern) {
         size_t m = pattern.size();
 
-        std::vector<size_t> ms_pointers(m);
-        std::vector<size_t> my_refs(m,0);
+        std::vector<size_t> ms_references(m,0); //! stores at (m-i)-th entry the text position of the match with pattern[m-i..] when computing the matching statistics of pattern[m-i-1..]
         std::vector<size_t> ms_lengths(m,1);
-        std::vector<size_t> debug_lengths(m,1);
+        ms_lengths[m-1] = 1;
 
         // Start with the empty string
         auto pos = this->bwt.select(1, pattern[m-1]);
         {
             const ri::ulint run_of_j = this->bwt.run_of_position(pos);
-            ms_pointers[m-1] = samples_start[run_of_j];
-            my_refs[m-1] = samples_start[run_of_j];
-            assert(slp.charAt(ms_pointers[m-1]) == pattern[m-1]);
-            assert(slp.charAt(my_refs[m-1]) == pattern[m-1]);
-            ms_lengths[m-1] = 1;
-            debug_lengths[m-1] = 1;
+            ms_references[m-1] = samples_start[run_of_j];
+            assert(slp.charAt(ms_references[m-1]) == pattern[m-1]);
         }
-        auto sample = ms_pointers[m-1]; 
         pos = LF(pos, pattern[m-1]);
 
-        for (size_t i = 1; i < pattern.size(); ++i)
-        {
-            auto c = pattern[m - i - 1];
+        for (size_t i = 1; i < pattern.size(); ++i) {
+            const auto c = pattern[m - i - 1];
 
-            if (this->bwt.number_of_letter(c) == 0)
-            {
-                sample = 0;
+            if (this->bwt.number_of_letter(c) == 0) {
                 ms_lengths[m-i-1] = 0;
-                debug_lengths[m-i-1] = 0;
-                std::cout << "2 letter " << c  << " not found for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
-                my_refs[m - i - 1] = 0;
+                // std::cout << "2 letter " << c  << " not found for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
+                ms_references[m - i - 1] = 0;
             } 
-            else if (pos < this->bwt.size() && this->bwt[pos] == c)
-            {
-                sample--;
+            else if (pos < this->bwt.size() && this->bwt[pos] == c) {
                 assert(i != 0);
                 ms_lengths[m-i-1] = ms_lengths[m-i]+1;
-                debug_lengths[m-i-1] = debug_lengths[m-i]+1;
-                std::cout << "0 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
+                // std::cout << "0 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
 
-                my_refs[m - i - 1] = my_refs[m - i]-1;
-                // {//assert
-                //     const ri::ulint run = this->bwt.run_of_position(pos);
-                //     const size_t textposStart = this->samples_start[run];
-                //     const size_t textposLast = this->samples_last[run];
-                //     const size_t lenLast = lceToR(slp, textposLast+1, my_refs[m-i]);
-                //     const size_t lenStart = lceToR(slp, textposStart+1, my_refs[m-i]);
-                //     const size_t lenMax = std::max(lenStart, lenLast);
-                //     assert(lenMax >= ms_lengths[m-i-1]);
-                // }
+                DCHECK_GT(ms_references[m - i], 0);
+                ms_references[m - i - 1] = ms_references[m - i]-1;
             }
-            else
-            {
-                {
-                    const ri::ulint rank = this->bwt.rank(pos, c);
-                    size_t len0 = 0;
-                    size_t len1 = 0;
-                    size_t ref0 = 0;
-                    size_t ref1 = 0;
+            else {
+                const ri::ulint rank = this->bwt.rank(pos, c);
+                size_t len0 = 0;
+                size_t len1 = 0;
+                size_t ref0 = 0;
+                size_t ref1 = 0;
+                size_t sa0 = 0;
+                size_t sa1 = 0;
 
-                    //TODO: should check that rank > 0, since select(0) should throw an exception!
-                    if(rank < this->bwt.number_of_letter(c)) {
-                        const ri::ulint sa1 = this->bwt.select(rank, c);
-                        const ri::ulint run1 = this->bwt.run_of_position(sa1);
-                        const size_t textposStart = this->samples_start[run1];
-                        const size_t textposLast = this->samples_last[run1];
-                        const size_t lenStart = lceToR(slp, textposStart+1, my_refs[m-i]);
-                        const size_t lenLast = lceToR(slp, textposLast+1, my_refs[m-i]);
-                        assert(lenStart >= lenLast);
-                        ref1 = textposStart;
-                        len1 = lenStart;
-                        // len1 = lceToR(slp, textpos1+1, my_refs[m-i]);
-                        // len1 = std::max(len1, lceToR(slp, textpos2+1, my_refs[m-i]));
-                        // ref = lceToR(slp, textpos1+1, my_refs[m-i]) < 
-                    }
-                    if(rank > 0) {
-                        const ri::ulint sa0 = this->bwt.select(rank-1, c);
-                        const ri::ulint run0 = this->bwt.run_of_position(sa0);
-
-                        const size_t textposStart = this->samples_start[run0];
-                        const size_t textposLast = this->samples_last[run0];
-                        const size_t lenStart = lceToR(slp, textposStart+1, my_refs[m-i]);
-                        const size_t lenLast = lceToR(slp, textposLast+1, my_refs[m-i]);
-                        assert(lenStart <= lenLast);
-                        ref0 = textposLast;
-                        len0 = lenLast;
-                    }
-                    ms_lengths[m-i-1] = 1 + std::min(ms_lengths[m-i],std::max(len1,len0));
-                    my_refs[m-i-1] = (len0 > len1) ? ref0 : ref1;
-                    // assert(ms_lengths[m-i-1] > 0);
-                    std::cout << "1 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << " with LCE " << std::max(len1,len0) << std::endl;
+                if(rank < this->bwt.number_of_letter(c)) {
+                    sa1 = this->bwt.select(rank, c);
+                    const ri::ulint run1 = this->bwt.run_of_position(sa1);
+                    const size_t textposStart = this->samples_start[run1];
+                    const size_t lenStart = lceToR(slp, textposStart+1, ms_references[m-i]);
+                    ON_DEBUG(
+                            const size_t textposLast = this->samples_last[run1];
+                            const size_t lenLast = lceToR(slp, textposLast+1, ms_references[m-i]);
+                            DCHECK_GT(lenStart, lenLast);
+                    )
+                    ref1 = textposStart;
+                    len1 = lenStart;
                 }
+                if(rank > 0) {
+                    sa0 = this->bwt.select(rank-1, c);
+                    const ri::ulint run0 = this->bwt.run_of_position(sa0);
 
-
-
-                // Get threshold
-                ri::ulint rnk = this->bwt.rank(pos, c);
-                size_t thr = this->bwt.size() + 1;
-
-                ulint next_pos = pos;
-
-                // if (rnk < (this->F[c] - this->F[c-1]) // I can use F to compute it
-                if (rnk < this->bwt.number_of_letter(c))
-                {
-                    // j is the first position of the next run of c's
-                    ri::ulint j = this->bwt.select(rnk, c);
-                    ri::ulint run_of_j = this->bwt.run_of_position(j);
-
-                    thr = thresholds[run_of_j]; // If it is the first run thr = 0
-
-                    // Here we should use Phi_inv that is not implemented yet
-                    // sample = this->Phi(this->samples_last[run_of_j - 1]) - 1;
-                    sample = samples_start[run_of_j];
-
-                    next_pos = j;
+                    const size_t textposLast = this->samples_last[run0];
+                    const size_t lenLast = lceToR(slp, textposLast+1, ms_references[m-i]);
+                    ON_DEBUG( //sanity check
+                            const size_t textposStart = this->samples_start[run0];
+                            const size_t lenStart = lceToR(slp, textposStart+1, ms_references[m-i]);
+                            DCHECK_LE(lenStart, lenLast);
+                    )
+                    ref0 = textposLast;
+                    len0 = lenLast;
                 }
-
-                if (pos < thr)
-                {
-
-                    rnk--;
-                    ri::ulint j = this->bwt.select(rnk, c);
-                    ri::ulint run_of_j = this->bwt.run_of_position(j);
-                    sample = this->samples_last[run_of_j];
-
-                    next_pos = j;
+                if(len0 < len1) {
+                    len0 = len1;
+                    ref0 = ref1;
+                    sa0 = sa1;
                 }
-                pos = next_pos;
+                    
+                ms_lengths[m-i-1] = 1 + std::min(ms_lengths[m-i],len0);
+                ms_references[m-i-1] = ref0;
+                pos = sa0;
+
+                DCHECK_GT(ms_lengths[m-i-1], 0);
+                // std::cout << "1 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << " with LCE " << std::max(len1,len0) << std::endl;
             }
-
-            {
-                debug_lengths[m-i-1] = 1+std::min(lceToR(slp, sample+1, ms_pointers[m-i]), debug_lengths[m-i]);
-                    std::cout << "4 Len for " << (m-i-1) << " : " << debug_lengths[m-i-1] << std::endl;
-            }
-            ms_pointers[m-i-1] = sample;
-
-            // Perform one backward step
-            pos = LF(pos, c);
+            pos = LF(pos, c); //! Perform one backward step
         }
 
-        return ms_lengths;
-        // return ms_pointers;
+        return std::make_pair(ms_lengths, ms_references);
     }
 
     /*
@@ -395,8 +342,9 @@ public:
         written_bytes += my_serialize(this->F, out, child, "F");
         written_bytes += this->bwt.serialize(out);
         written_bytes += this->samples_last.serialize(out);
+        //TODO: serialize SLP
 
-        written_bytes += my_serialize(thresholds, out, child, "thresholds");
+        // written_bytes += my_serialize(thresholds, out, child, "thresholds");
         // written_bytes += my_serialize(samples_start, out, child, "samples_start");
         written_bytes += samples_start.serialize(out, child, "samples_start");
 
@@ -418,7 +366,7 @@ public:
         this->samples_last.load(in);
         this->pred_to_run.load(in);
 
-        my_load(thresholds,in);
+        // my_load(thresholds,in);
         samples_start.load(in);
         // my_load(samples_start,in);
     }
