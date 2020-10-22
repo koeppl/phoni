@@ -132,6 +132,7 @@ public:
         verbose("R-index construction complete");
         verbose("Memory peak: ", malloc_count_peak());
         verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
+        verbose(3);
 
 
         {
@@ -360,7 +361,8 @@ public:
             pos = LF(pos, c);
         }
 
-        return ms_pointers;
+        return ms_lengths;
+        // return ms_pointers;
     }
 
     /*

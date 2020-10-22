@@ -138,31 +138,35 @@ int main(int argc, char *const argv[])
   if (!f_lengths.is_open())
     error("open() file " + std::string(args.filename) + ".lengths failed");
 
-  for (auto pattern : patterns)
-  {
-    auto pointers = ms.query(pattern.second);
-    std::vector<size_t> lengths(pointers.size());
-    size_t l = 0;
-    for (size_t i = 0; i < pointers.size(); ++i)
-    {
-      size_t pos = pointers[i];
-      while ((i + l) < pattern.second.size() && (pos + l) < n && pattern.second[i + l] == ra.charAt(pos + l))
-        ++l;
-
-      lengths[i] = l;
-      l = (l == 0 ? 0 : (l - 1));
+  for (auto pattern : patterns) {
+    auto lengths = ms.query(pattern.second);
+    for(const auto& length : lengths) {
+      f_lengths << length << " ";
     }
-
-    f_pointers << pattern.first << endl;
-    for (auto elem : pointers)
-      f_pointers << elem << " ";
-    f_pointers << endl;
-
-    f_lengths << pattern.first << endl;
-    for (auto elem : lengths)
-      f_lengths << elem << " ";
     f_lengths << endl;
   }
+  //   std::vector<size_t> lengths(pointers.size());
+  //   size_t l = 0;
+  //   for (size_t i = 0; i < pointers.size(); ++i)
+  //   {
+  //     size_t pos = pointers[i];
+  //     while ((i + l) < pattern.second.size() && (pos + l) < n && pattern.second[i + l] == ra.charAt(pos + l))
+  //       ++l;
+  //
+  //     lengths[i] = l;
+  //     l = (l == 0 ? 0 : (l - 1));
+  //   }
+  //
+  //   f_pointers << pattern.first << endl;
+  //   for (auto elem : pointers)
+  //     f_pointers << elem << " ";
+  //   f_pointers << endl;
+  //
+  //   f_lengths << pattern.first << endl;
+  //   for (auto elem : lengths)
+  //     f_lengths << elem << " ";
+  //   f_lengths << endl;
+  // }
 
   f_pointers.close();
   f_lengths.close();
