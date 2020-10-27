@@ -270,10 +270,10 @@ public:
                     sa1 = this->bwt.select(rank, c);
                     const ri::ulint run1 = this->bwt.run_of_position(sa1);
                     const size_t textposStart = this->samples_start[run1];
-                    const size_t lenStart = lceToR(slp, textposStart+1, ms_references[m-i]);
+                    const size_t lenStart = lceToRBounded(slp, textposStart+1, ms_references[m-i], ms_lengths[m-i]);
                     ON_DEBUG(
                             const size_t textposLast = this->samples_last[run1];
-                            const size_t lenLast = lceToR(slp, textposLast+1, ms_references[m-i]);
+                            const size_t lenLast = lceToRBounded(slp, textposLast+1, ms_references[m-i]);
                             DCHECK_GT(lenStart, lenLast);
                     )
                     ref1 = textposStart;
@@ -284,7 +284,7 @@ public:
                     const ri::ulint run0 = this->bwt.run_of_position(sa0);
 
                     const size_t textposLast = this->samples_last[run0];
-                    const size_t lenLast = lceToR(slp, textposLast+1, ms_references[m-i]);
+                    const size_t lenLast = lceToRBounded(slp, textposLast+1, ms_references[m-i], ms_lengths[m-i]);
                     ON_DEBUG( //sanity check
                             const size_t textposStart = this->samples_start[run0];
                             const size_t lenStart = lceToR(slp, textposStart+1, ms_references[m-i]);
