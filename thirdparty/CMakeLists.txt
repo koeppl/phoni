@@ -185,12 +185,12 @@ if(NOT r-index_POPULATED)
   target_include_directories(ri INTERFACE ${r-index_SOURCE_DIR}/internal)
 endif()
 
-## Add pfp-thresholds
-FetchContent_Declare(
-  pfp_thresholds
-  GIT_REPOSITORY git@github.com:maxrossi91/pfp-thresholds.git
-  GIT_TAG develop
-  )
+# Add pfp-thresholds
+ FetchContent_Declare(
+   pfp_thresholds
+   GIT_REPOSITORY git@github.com:maxrossi91/pfp-thresholds.git
+   GIT_TAG develop
+   )
   
 FetchContent_GetProperties(pfp_thresholds)
 if(NOT pfp_thresholds_POPULATED)
@@ -222,7 +222,7 @@ endif()
 ## Add ShapedSlp
 FetchContent_Declare(
   shaped_slp
-  GIT_REPOSITORY https://github.com/maxrossi91/ShapedSlp.git
+  GIT_REPOSITORY https://github.com/koeppl/ShapedSlp
   GIT_TAG master
   )
   
