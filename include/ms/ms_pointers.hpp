@@ -185,6 +185,9 @@ public:
             verbose("Memory peak: ", malloc_count_peak());
             verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
         }
+        verbose("text length: ", slp.getLen());
+        verbose("bwt length: ", this->bwt.size());
+        DCHECK_EQ(slp.getLen()+1, this->bwt.size());
     }
 
     void read_samples(std::string filename, ulint r, int log_n, int_vector<> &samples)
@@ -226,18 +229,25 @@ public:
 
     // Computes the matching statistics pointers for the given pattern
     std::pair<std::vector<size_t>, std::vector<size_t>> query(const std::vector<uint8_t>& pattern) {
-        size_t m = pattern.size();
+        const size_t m = pattern.size();
+        const size_t n = slp.getLen();
+        verbose("pattern length: ", m);
+        
 
+        //TODO: we could allocate the file here and store the numbers *backwards* !
         std::vector<size_t> ms_references(m,0); //! stores at (m-i)-th entry the text position of the match with pattern[m-i..] when computing the matching statistics of pattern[m-i-1..]
         std::vector<size_t> ms_lengths(m,1);
         ms_lengths[m-1] = 1;
 
-        // Start with the empty string
+        //!todo: we need here a while look in case that we want to support suffixes of the pattern that are not part of the text
+        DCHECK_GT(this->bwt.number_of_letter(pattern[m-1]), 0);
+
+        //! Start with the last character
         auto pos = this->bwt.select(1, pattern[m-1]);
         {
             const ri::ulint run_of_j = this->bwt.run_of_position(pos);
             ms_references[m-1] = samples_start[run_of_j];
-            assert(slp.charAt(ms_references[m-1]) == pattern[m-1]);
+            DCHECK_EQ(slp.charAt(ms_references[m-1]),  pattern[m-1]);
         }
         pos = LF(pos, pattern[m-1]);
 
@@ -250,7 +260,7 @@ public:
                 ms_references[m - i - 1] = 0;
             } 
             else if (pos < this->bwt.size() && this->bwt[pos] == c) {
-                assert(i != 0);
+                DCHECK_NE(i, 0);
                 ms_lengths[m-i-1] = ms_lengths[m-i]+1;
                 // std::cout << "0 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
 
@@ -270,12 +280,12 @@ public:
                     sa1 = this->bwt.select(rank, c);
                     const ri::ulint run1 = this->bwt.run_of_position(sa1);
                     const size_t textposStart = this->samples_start[run1];
-                    const size_t lenStart = lceToRBounded(slp, textposStart+1, ms_references[m-i], ms_lengths[m-i]);
-                    ON_DEBUG(
-                            const size_t textposLast = this->samples_last[run1];
-                            const size_t lenLast = lceToRBounded(slp, textposLast+1, ms_references[m-i]);
-                            DCHECK_GT(lenStart, lenLast);
-                    )
+                    const size_t lenStart = textposStart+1 >= n ? 0 : lceToRBounded(slp, textposStart+1, ms_references[m-i], ms_lengths[m-i]);
+                    // ON_DEBUG(
+                    //         const size_t textposLast = this->samples_last[run1];
+                    //         const size_t lenLast = lceToRBounded(slp, textposLast+1, ms_references[m-i]);
+                    //         DCHECK_GT(lenStart, lenLast);
+                    // )
                     ref1 = textposStart;
                     len1 = lenStart;
                 }
@@ -284,12 +294,12 @@ public:
                     const ri::ulint run0 = this->bwt.run_of_position(sa0);
 
                     const size_t textposLast = this->samples_last[run0];
-                    const size_t lenLast = lceToRBounded(slp, textposLast+1, ms_references[m-i], ms_lengths[m-i]);
-                    ON_DEBUG( //sanity check
-                            const size_t textposStart = this->samples_start[run0];
-                            const size_t lenStart = lceToR(slp, textposStart+1, ms_references[m-i]);
-                            DCHECK_LE(lenStart, lenLast);
-                    )
+                    const size_t lenLast = textposLast+1 >= n ? 0 : lceToRBounded(slp, textposLast+1, ms_references[m-i], ms_lengths[m-i]);
+                    // ON_DEBUG( //sanity check
+                    //         const size_t textposStart = this->samples_start[run0];
+                    //         const size_t lenStart = lceToRBounded(slp, textposStart+1, ms_references[m-i], ms_lengths[m-1]);
+                    //         DCHECK_LE(lenStart, lenLast);
+                    // )
                     ref0 = textposLast;
                     len0 = lenLast;
                 }

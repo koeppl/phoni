@@ -70,6 +70,7 @@ std::vector<pattern_t> read_patterns(std::string filename)
     patterns.push_back(pattern);
 
   fclose(fd);
+  verbose("Number of patterns: ", patterns.size());
 
   return patterns;
 }
@@ -80,6 +81,21 @@ int main(int argc, char *const argv[]) {
 
   verbose("Building the matching statistics index");
   std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
+
+
+        // {
+        //   using SlpT = SelfShapedSlp<var_t, DagcSd, DagcSd, SelSd>;
+        //   SlpT slp;
+        //   verbose("Load Dummy Grammar2");
+        //
+        //   ifstream fs(args.filename + ".slp");
+        //   slp.load(fs);
+        //   verbose("size : ", slp.getLen());
+        //   const size_t lenStart = lceToR(slp, 5912507281, 5710333848);
+        //   verbose("dummy query : ", lenStart);
+        //   verbose("Memory peak: ", malloc_count_peak());
+        // }
+
 
   ms_pointers<> ms(args.filename);
 
@@ -112,6 +128,7 @@ int main(int argc, char *const argv[]) {
     error("open() file " + std::string(args.filename) + ".lengths failed");
 
   for (auto pattern : patterns) {
+  verbose("Processing pattern ", pattern.first);
    f_lengths << pattern.first << endl;
     auto [lengths,refs] = ms.query(pattern.second);
     for(const auto& length : lengths) {
