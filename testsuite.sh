@@ -27,6 +27,7 @@ while [ 1 ]; do
 	# fi
 	
 
+	cd /home/niki/code/pfp/moni/debug
 	while ! make; do sleep 10; done
 
 

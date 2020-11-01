@@ -75,6 +75,10 @@ std::vector<pattern_t> read_patterns(std::string filename)
   return patterns;
 }
 
+    void read_int(istream& is, size_t& i){
+      is.read(reinterpret_cast<char*>(&i), sizeof(size_t));
+    }
+
 int main(int argc, char *const argv[]) {
   Args args;
   parseArgs(argc, argv, args);
@@ -130,16 +134,28 @@ int main(int argc, char *const argv[]) {
   for (auto pattern : patterns) {
   verbose("Processing pattern ", pattern.first);
    f_lengths << pattern.first << endl;
-    auto [lengths,refs] = ms.query(pattern.second);
-    for(const auto& length : lengths) {
-      f_lengths << length << " ";
-    }
-    f_lengths << endl;
+    //auto [lengths,refs] = 
+    ms.query(pattern.second, std::string(args.filename) + ".binrev.length",  std::string(args.filename) + ".binrev.pointers");
 
-    f_pointers << pattern.first << endl;
-    for (auto elem : refs)
-      f_pointers << elem << " ";
+    {
+      ifstream len_file(std::string(args.filename) + ".binrev.length", std::ios::binary);
+      ifstream ref_file(std::string(args.filename) + ".binrev.pointers", std::ios::binary);
+      const size_t patternlength = pattern.second.size();
+      for(size_t i = 0; i < patternlength; ++i) {
+        size_t len;
+        size_t ref;
+        len_file.seekg((patternlength-i-1)*sizeof(size_t), std::ios_base::beg);
+        ref_file.seekg((patternlength-i-1)*sizeof(size_t), std::ios_base::beg);
+        read_int(len_file, len);
+        read_int(ref_file, ref);
+        // DCHECK_EQ(lengths[i], len);
+        // DCHECK_EQ(refs[i], ref);
+        f_lengths << len << " ";
+        f_pointers << ref << " ";
+      }
+    f_lengths << endl;
     f_pointers << endl;
+    }
   }
 
   f_pointers.close();

@@ -24,13 +24,6 @@
 #ifndef _MS_POINTERS_HH
 #define _MS_POINTERS_HH
 
-#ifdef MORE_DEBUG
-#define ON_DEBUG(x) x
-#else
-#define ON_DEBUG(x)
-#endif
-
-
 #ifndef DCHECK_HPP
 #define DCHECK_HPP
 #include <string>
@@ -39,6 +32,7 @@
 
 #ifndef DCHECK
 #ifdef NDEBUG
+#define ON_DEBUG(x)
 #define DCHECK_(x,y,z)
 #define DCHECK(x) 
 #define DCHECK_EQ(x, y) 
@@ -48,6 +42,7 @@
 #define DCHECK_GE(x, y) 
 #define DCHECK_GT(x, y) 
 #else//NDEBUG
+#define ON_DEBUG(x) x
 #define DCHECK_(x,y,z) \
   if (!(x)) throw std::runtime_error(std::string(" in file ") + __FILE__ + ':' + std::to_string(__LINE__) + (" the check failed: " #x) + ", we got " + std::to_string(y) + " vs " + std::to_string(z))
 #define DCHECK(x) \
@@ -227,17 +222,39 @@ public:
         fclose(fd);
     }
 
+    void write_int(ostream& os, const size_t& i){
+      os.write(reinterpret_cast<const char*>(&i), sizeof(size_t));
+    }
+
     // Computes the matching statistics pointers for the given pattern
-    std::pair<std::vector<size_t>, std::vector<size_t>> query(const std::vector<uint8_t>& pattern) {
+    //std::pair<std::vector<size_t>, std::vector<size_t>> 
+    void query(const std::vector<uint8_t>& pattern, const std::string& len_filename, const std::string& ref_filename) {
+
+        ofstream len_file(len_filename, std::ios::binary);
+        ofstream ref_file(ref_filename, std::ios::binary);
+
         const size_t m = pattern.size();
         const size_t n = slp.getLen();
         verbose("pattern length: ", m);
         
+        size_t last_len;
+        size_t last_ref;
+
+        auto write_len = [&] (const size_t i) { 
+          last_len = i;
+          write_int(len_file, last_len);
+        };
+        auto write_ref = [&] (const size_t i) { 
+          last_ref = i;
+          write_int(ref_file, last_ref);
+        };
 
         //TODO: we could allocate the file here and store the numbers *backwards* !
-        std::vector<size_t> ms_references(m,0); //! stores at (m-i)-th entry the text position of the match with pattern[m-i..] when computing the matching statistics of pattern[m-i-1..]
-        std::vector<size_t> ms_lengths(m,1);
-        ms_lengths[m-1] = 1;
+        ON_DEBUG(std::vector<size_t> ms_references(m,0)); //! stores at (m-i)-th entry the text position of the match with pattern[m-i..] when computing the matching statistics of pattern[m-i-1..]
+        ON_DEBUG(std::vector<size_t> ms_lengths(m,1));
+        ON_DEBUG(ms_lengths[m-1] = 1);
+        write_len(1);
+
 
         //!todo: we need here a while look in case that we want to support suffixes of the pattern that are not part of the text
         DCHECK_GT(this->bwt.number_of_letter(pattern[m-1]), 0);
@@ -246,26 +263,35 @@ public:
         auto pos = this->bwt.select(1, pattern[m-1]);
         {
             const ri::ulint run_of_j = this->bwt.run_of_position(pos);
-            ms_references[m-1] = samples_start[run_of_j];
+            ON_DEBUG(ms_references[m-1] = samples_start[run_of_j]);
+            write_ref(samples_start[run_of_j]);
             DCHECK_EQ(slp.charAt(ms_references[m-1]),  pattern[m-1]);
         }
         pos = LF(pos, pattern[m-1]);
 
         for (size_t i = 1; i < pattern.size(); ++i) {
             const auto c = pattern[m - i - 1];
+            DCHECK_EQ(ms_lengths[m-i], last_len);
+            ON_DEBUG(DCHECK_EQ(ms_references[m-i], last_ref));
 
             if (this->bwt.number_of_letter(c) == 0) {
-                ms_lengths[m-i-1] = 0;
+                ON_DEBUG(ms_lengths[m-i-1] = 0);
+                write_len(0);
+                last_len = 0; write_int(len_file, last_len);
                 // std::cout << "2 letter " << c  << " not found for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
-                ms_references[m - i - 1] = 0;
+                ON_DEBUG(ms_references[m - i - 1] = 0);
+                write_ref(0);
             } 
             else if (pos < this->bwt.size() && this->bwt[pos] == c) {
                 DCHECK_NE(i, 0);
-                ms_lengths[m-i-1] = ms_lengths[m-i]+1;
+                ON_DEBUG(ms_lengths[m-i-1] = ms_lengths[m-i]+1);
+                write_len(last_len+1);
                 // std::cout << "0 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
 
                 DCHECK_GT(ms_references[m - i], 0);
-                ms_references[m - i - 1] = ms_references[m - i]-1;
+                ON_DEBUG(ms_references[m - i - 1] = ms_references[m - i]-1);
+                DCHECK_GT(last_ref, 0);
+                write_ref(last_ref-1);
             }
             else {
                 const ri::ulint rank = this->bwt.rank(pos, c);
@@ -280,7 +306,7 @@ public:
                     sa1 = this->bwt.select(rank, c);
                     const ri::ulint run1 = this->bwt.run_of_position(sa1);
                     const size_t textposStart = this->samples_start[run1];
-                    const size_t lenStart = textposStart+1 >= n ? 0 : lceToRBounded(slp, textposStart+1, ms_references[m-i], ms_lengths[m-i]);
+                    const size_t lenStart = textposStart+1 >= n ? 0 : lceToRBounded(slp, textposStart+1, last_ref, last_len);
                     // ON_DEBUG(
                     //         const size_t textposLast = this->samples_last[run1];
                     //         const size_t lenLast = lceToRBounded(slp, textposLast+1, ms_references[m-i]);
@@ -294,7 +320,7 @@ public:
                     const ri::ulint run0 = this->bwt.run_of_position(sa0);
 
                     const size_t textposLast = this->samples_last[run0];
-                    const size_t lenLast = textposLast+1 >= n ? 0 : lceToRBounded(slp, textposLast+1, ms_references[m-i], ms_lengths[m-i]);
+                    const size_t lenLast = textposLast+1 >= n ? 0 : lceToRBounded(slp, textposLast+1, last_ref, last_len);
                     // ON_DEBUG( //sanity check
                     //         const size_t textposStart = this->samples_start[run0];
                     //         const size_t lenStart = lceToRBounded(slp, textposStart+1, ms_references[m-i], ms_lengths[m-1]);
@@ -309,8 +335,10 @@ public:
                     sa0 = sa1;
                 }
                     
-                ms_lengths[m-i-1] = 1 + std::min(ms_lengths[m-i],len0);
-                ms_references[m-i-1] = ref0;
+                ON_DEBUG(ms_lengths[m-i-1] = 1 + std::min(ms_lengths[m-i],len0));
+                write_len(1 + std::min(last_len,len0));
+                ON_DEBUG(ms_references[m-i-1] = ref0);
+                write_ref(ref0);
                 pos = sa0;
 
                 DCHECK_GT(ms_lengths[m-i-1], 0);
@@ -319,7 +347,7 @@ public:
             pos = LF(pos, c); //! Perform one backward step
         }
 
-        return std::make_pair(ms_lengths, ms_references);
+        // return std::make_pair(ms_lengths, ms_references);
     }
 
     /*
