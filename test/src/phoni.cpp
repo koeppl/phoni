@@ -83,25 +83,15 @@ int main(int argc, char *const argv[]) {
   Args args;
   parseArgs(argc, argv, args);
 
-  verbose("Building the matching statistics index");
+  verbose("Deserializing the phoni index");
   std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
 
 
-        // {
-        //   using SlpT = SelfShapedSlp<var_t, DagcSd, DagcSd, SelSd>;
-        //   SlpT slp;
-        //   verbose("Load Dummy Grammar2");
-        //
-        //   ifstream fs(args.filename + ".slp");
-        //   slp.load(fs);
-        //   verbose("size : ", slp.getLen());
-        //   const size_t lenStart = lceToR(slp, 5912507281, 5710333848);
-        //   verbose("dummy query : ", lenStart);
-        //   verbose("Memory peak: ", malloc_count_peak());
-        // }
-
-
-  ms_pointers<> ms(args.filename);
+  ms_pointers<> ms;
+  {
+    ifstream in(args.filename + ".phoni");
+    ms.load(in, args.filename);
+  }
 
   std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
 

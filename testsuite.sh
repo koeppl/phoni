@@ -37,12 +37,18 @@ while [ 1 ]; do
 		genDNA 100 >> $pattern
 	done
 
+	set -x
+	/home/niki/code/pfp/moni/debug/test/src/build_phoni -f "$dataset"
 	/home/niki/code/pfp/moni/debug/test/src/phoni -f "$dataset" -p $pattern
 	/home/niki/code/pfp/moni/build/_deps/pfp_thresholds-build/test/src/sdsl_matching_statistics -f "$dataset" -p $pattern
+	set +x
 	# /home/niki/code/pfp/moni/build/_deps/pfp_thresholds-build/test/src/matching_statistics -f "$dataset" -p $pattern
 	
 	cp $pattern ${pattern}2
+	set -x
+	/home/niki/code/pfp/moni/debug/test/src/build_phoni -f "$rdataset"
 	/home/niki/code/pfp/moni/debug/test/src/phoni -f "$rdataset" -p ${pattern}2
+	set +x
 
 	if ! diff -q $pattern.sdsl.lengths $pattern.lengths; then
 		echo "SDSL"

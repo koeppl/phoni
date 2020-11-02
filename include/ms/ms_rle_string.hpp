@@ -98,7 +98,7 @@ public:
         runs_bv.push_back(false);
 
         //now compact structures
-        assert(runs_bv.size() == this->n);
+        assert(runs_bv.size() == this->n+1);
         ulint t = 0;
         for (ulint i = 0; i < 256; ++i)
             t += runs_per_letter_bv[i].size();

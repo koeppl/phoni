@@ -122,8 +122,11 @@ public:
 
     typedef size_t size_type;
 
-    ms_pointers(std::string filename) : 
-        ri::r_index<sparse_bv_type, rle_string_t>()
+    ms_pointers()
+        : ri::r_index<sparse_bv_type, rle_string_t>()
+        {}
+
+    void build(const std::string& filename) 
     {
         verbose("Building the r-index from BWT");
 
@@ -132,14 +135,29 @@ public:
         std::string bwt_fname = filename + ".bwt";
 
         verbose("RLE encoding BWT and computing SA samples");
-        std::ifstream ifs(bwt_fname);
-        this->bwt = rle_string_t(ifs); 
-        // std::string istring;
-        // read_file(bwt_fname.c_str(), istring);
-        // for(size_t i = 0; i < istring.size(); ++i)
-        //     if(istring[i]==0)
-        //         istring[i] = TERMINATOR;
-        // this->bwt = rle_string_t(istring);
+
+        if (true)
+        {
+            std::string bwt_heads_fname = bwt_fname + ".heads";
+            std::ifstream ifs_heads(bwt_heads_fname);
+            std::string bwt_len_fname = bwt_fname + ".len";
+            std::ifstream ifs_len(bwt_len_fname);
+            this->bwt = rle_string_t(ifs_heads, ifs_len);
+
+            ifs_heads.seekg(0);
+            ifs_len.seekg(0);
+            this->build_F_(ifs_heads, ifs_len);
+        }
+        else
+        {
+            std::ifstream ifs(bwt_fname);
+            this->bwt = rle_string_t(ifs);
+
+            ifs.seekg(0);
+            this->build_F(ifs);
+        }
+
+
 
         this->r = this->bwt.number_of_runs();
         // ri::ulint n = this->bwt.size();
@@ -151,39 +169,41 @@ public:
         verbose("log2(r) = " , log2(double(this->r)));
         verbose("log2(n/r) = " , log2(double(this->bwt.size()) / this->r));
 
-        ifs.seekg(0);
-        this->build_F(ifs);
-        // this->build_F(istring);
-        // istring.clear();
-        // istring.shrink_to_fit();
 
 
         read_samples(filename + ".ssa", this->r, log_n, samples_start);
         read_samples(filename + ".esa", this->r, log_n, this->samples_last);
 
-        std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
 
+        std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
         verbose("R-index construction complete");
         verbose("Memory peak: ", malloc_count_peak());
         verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
         verbose(3);
 
+        load_grammar(filename);
 
-        {
-            verbose("Load Grammar");
-            t_insert_start = std::chrono::high_resolution_clock::now();
-
-            ifstream fs(filename + ".slp");
-            slp.load(fs);
-
-            t_insert_end = std::chrono::high_resolution_clock::now();
-            verbose("Memory peak: ", malloc_count_peak());
-            verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
-        }
         verbose("text length: ", slp.getLen());
         verbose("bwt length: ", this->bwt.size());
         DCHECK_EQ(slp.getLen()+1, this->bwt.size());
     }
+  
+
+    void load_grammar(const std::string& filename) {
+        {
+            verbose("Load Grammar");
+            std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
+
+            ifstream fs(filename + ".slp");
+            slp.load(fs);
+
+            std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
+            verbose("Memory peak: ", malloc_count_peak());
+            verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
+        }
+    }
+
+
 
     void read_samples(std::string filename, ulint r, int log_n, int_vector<> &samples)
     {
@@ -380,33 +400,27 @@ public:
         written_bytes += my_serialize(this->F, out, child, "F");
         written_bytes += this->bwt.serialize(out);
         written_bytes += this->samples_last.serialize(out);
-        //TODO: serialize SLP
 
-        // written_bytes += my_serialize(thresholds, out, child, "thresholds");
-        // written_bytes += my_serialize(samples_start, out, child, "samples_start");
         written_bytes += samples_start.serialize(out, child, "samples_start");
 
         sdsl::structure_tree::add_size(child, written_bytes);
         return written_bytes;
+
     }
 
     /* load the structure from the istream
      * \param in the istream
      */
-    void load(std::istream &in)
+    void load(std::istream &in, const std::string& filename)
     {
-
         in.read((char *)&this->terminator_position, sizeof(this->terminator_position));
         my_load(this->F, in);
         this->bwt.load(in);
         this->r = this->bwt.number_of_runs();
-        this->pred.load(in);
         this->samples_last.load(in);
-        this->pred_to_run.load(in);
-
-        // my_load(thresholds,in);
-        samples_start.load(in);
-        // my_load(samples_start,in);
+        this->samples_start.load(in);
+        
+        load_grammar(filename);
     }
 
     // // From r-index
@@ -417,62 +431,38 @@ public:
 
     protected :
 
-        // // From r-index
-        // vector<ulint> build_F(std::ifstream &ifs)
-        // {
-        //     ifs.clear();
-        //     ifs.seekg(0);
-        //     F = vector<ulint>(256, 0);
-        //     uchar c;
-        //     ulint i = 0;
-        //     while (ifs >> c)
-        //     {
-        //         if (c > TERMINATOR)
-        //             F[c]++;
-        //         else
-        //         {
-        //             F[TERMINATOR]++;
-        //             terminator_position = i;
-        //         }
-        //         i++;
-        //     }
-        //     for (ulint i = 255; i > 0; --i)
-        //         F[i] = F[i - 1];
-        //     F[0] = 0;
-        //     for (ulint i = 1; i < 256; ++i)
-        //         F[i] += F[i - 1];
-        //     return F;
-        // }
+    vector<ulint> build_F_(std::ifstream &heads, std::ifstream &lengths)
+    {
+        heads.clear();
+        heads.seekg(0);
+        lengths.clear();
+        lengths.seekg(0);
 
-        // // From r-index
-        // vector<pair<ulint, ulint>> &read_run_starts(std::string fname, ulint n, vector<pair<ulint, ulint>> &ssa)
-        // {
-        //     ssa.clear();
-        //     std::ifstream ifs(fname);
-        //     uint64_t x = 0;
-        //     uint64_t y = 0;
-        //     uint64_t i = 0;
-        //     while (ifs.read((char *)&x, 5) && ifs.read((char *)&y, 5))
-        //     {
-        //         ssa.push_back(pair<ulint, ulint>(y ? y - 1 : n - 1, i));
-        //         i++;
-        //     }
-        //     return ssa;
-        // }
-
-        // // From r-index
-        // vector<ulint> &read_run_ends(std::string fname, ulint n, vector<ulint> &esa)
-        // {
-        //     esa.clear();
-        //     std::ifstream ifs(fname);
-        //     uint64_t x = 0;
-        //     uint64_t y = 0;
-        //     while (ifs.read((char *)&x, 5) && ifs.read((char *)&y, 5))
-        //     {
-        //         esa.push_back(y ? y - 1 : n - 1);
-        //     }
-        //     return esa;
-        // }
+        this->F = vector<ulint>(256, 0);
+        int c;
+        {
+          ulint i = 0;
+          while ((c = heads.get()) != EOF)
+          {
+            size_t length;
+            lengths.read((char *)&length, 5);
+            if (c > TERMINATOR)
+              this->F[c] += length;
+            else
+            {
+              this->F[TERMINATOR] += length;
+              this->terminator_position = i;
+            }
+            i++;
+          }
+        }
+        for (ulint i = 255; i > 0; --i)
+            this->F[i] = this->F[i - 1];
+        this->F[0] = 0;
+        for (ulint i = 1; i < 256; ++i)
+            this->F[i] += this->F[i - 1];
+        return this->F;
+    }
     };
 
 #endif /* end of include guard: _MS_POINTERS_HH */

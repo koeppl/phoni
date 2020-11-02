@@ -33,6 +33,17 @@ target_include_directories(phoni PUBLIC    "../../include/ms"
                                         )
 target_compile_options(phoni PUBLIC "-std=c++17")
 
+add_executable(build_phoni build_phoni.cpp)
+target_link_libraries(build_phoni common sdsl divsufsort divsufsort64 malloc_count ri)
+target_include_directories(build_phoni PUBLIC    "../../include/ms" 
+                                        "../../include/common" 
+                                        "${shaped_slp_SOURCE_DIR}" 
+                                        "${FOLCA_SOURCE_DIR}" 
+                                        "${SUX_SOURCE_DIR}/function" 
+                                        "${SUX_SOURCE_DIR}/support"
+                                        )
+target_compile_options(build_phoni PUBLIC "-std=c++17")
+
 
 add_executable(rlebwt_ms_build rlebwt_ms_build.cpp)
 target_link_libraries(rlebwt_ms_build common sdsl divsufsort divsufsort64 malloc_count ri)
