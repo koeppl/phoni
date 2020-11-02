@@ -26,13 +26,9 @@
 
 #include <sdsl/io.hpp>
 
-#include <ms_pointers.hpp>
+#include <phoni.hpp>
 
 #include <malloc_count.h>
-
-#include <SelfShapedSlp.hpp>
-#include <DirectAccessibleGammaCode.hpp>
-#include <SelectType.hpp>
 
 typedef std::pair<std::string, std::vector<uint8_t>> pattern_t;
 
@@ -74,22 +70,36 @@ std::vector<pattern_t> read_patterns(std::string filename)
     patterns.push_back(pattern);
 
   fclose(fd);
+  verbose("Number of patterns: ", patterns.size());
 
   return patterns;
 }
 
-int main(int argc, char *const argv[])
-{
-  using SelSd = SelectSdvec<>;
-  using DagcSd = DirectAccessibleGammaCode<SelSd>;
+    void read_int(istream& is, size_t& i){
+      is.read(reinterpret_cast<char*>(&i), sizeof(size_t));
+    }
 
+int main(int argc, char *const argv[]) {
   Args args;
   parseArgs(argc, argv, args);
 
-  // Building the r-index
-
   verbose("Building the matching statistics index");
   std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
+
+
+        // {
+        //   using SlpT = SelfShapedSlp<var_t, DagcSd, DagcSd, SelSd>;
+        //   SlpT slp;
+        //   verbose("Load Dummy Grammar2");
+        //
+        //   ifstream fs(args.filename + ".slp");
+        //   slp.load(fs);
+        //   verbose("size : ", slp.getLen());
+        //   const size_t lenStart = lceToR(slp, 5912507281, 5710333848);
+        //   verbose("dummy query : ", lenStart);
+        //   verbose("Memory peak: ", malloc_count_peak());
+        // }
+
 
   ms_pointers<> ms(args.filename);
 
@@ -98,35 +108,6 @@ int main(int argc, char *const argv[])
   verbose("Matching statistics index construction complete");
   verbose("Memory peak: ", malloc_count_peak());
   verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
-
-  verbose("Building random access");
-  t_insert_start = std::chrono::high_resolution_clock::now();
-
-  // pfp_ra ra(args.filename, args.w);
-  std::string filename_slp = args.filename + ".slp";
-  SelfShapedSlp<uint32_t, DagcSd, DagcSd, SelSd> ra;
-  ifstream fs(filename_slp);
-  ra.load(fs);
-
-  size_t n = ra.getLen();
-
-  t_insert_end = std::chrono::high_resolution_clock::now();
-
-  verbose("Matching statistics index construction complete");
-  verbose("Memory peak: ", malloc_count_peak());
-  verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
-
-  sdsl::nullstream ns;
-
-  size_t ms_size = ms.serialize(ns);
-  // size_t ra_size = sdsl::size_in_bytes(ra);
-
-  verbose("MS size (bytes): ", ms_size);
-  // verbose("RA size (bytes): ", ra_size);
-
-
-  // size_t space = ms_size + ra_size;
-  // verbose("Total size (bytes): ", space);
 
   verbose("Reading patterns");
   t_insert_start = std::chrono::high_resolution_clock::now();
@@ -150,30 +131,31 @@ int main(int argc, char *const argv[])
   if (!f_lengths.is_open())
     error("open() file " + std::string(args.filename) + ".lengths failed");
 
-  for (auto pattern : patterns)
-  {
-    auto pointers = ms.query(pattern.second);
-    std::vector<size_t> lengths(pointers.size());
-    size_t l = 0;
-    for (size_t i = 0; i < pointers.size(); ++i)
+  for (auto pattern : patterns) {
+  verbose("Processing pattern ", pattern.first);
+   f_lengths << pattern.first << endl;
+    //auto [lengths,refs] = 
+    ms.query(pattern.second, std::string(args.filename) + ".binrev.length",  std::string(args.filename) + ".binrev.pointers");
+
     {
-      size_t pos = pointers[i];
-      while ((i + l) < pattern.second.size() && (pos + l) < n && pattern.second[i + l] == ra.charAt(pos + l))
-        ++l;
-
-      lengths[i] = l;
-      l = (l == 0 ? 0 : (l - 1));
-    }
-
-    f_pointers << pattern.first << endl;
-    for (auto elem : pointers)
-      f_pointers << elem << " ";
-    f_pointers << endl;
-
-    f_lengths << pattern.first << endl;
-    for (auto elem : lengths)
-      f_lengths << elem << " ";
+      ifstream len_file(std::string(args.filename) + ".binrev.length", std::ios::binary);
+      ifstream ref_file(std::string(args.filename) + ".binrev.pointers", std::ios::binary);
+      const size_t patternlength = pattern.second.size();
+      for(size_t i = 0; i < patternlength; ++i) {
+        size_t len;
+        size_t ref;
+        len_file.seekg((patternlength-i-1)*sizeof(size_t), std::ios_base::beg);
+        ref_file.seekg((patternlength-i-1)*sizeof(size_t), std::ios_base::beg);
+        read_int(len_file, len);
+        read_int(ref_file, ref);
+        // DCHECK_EQ(lengths[i], len);
+        // DCHECK_EQ(refs[i], ref);
+        f_lengths << len << " ";
+        f_pointers << ref << " ";
+      }
     f_lengths << endl;
+    f_pointers << endl;
+    }
   }
 
   f_pointers.close();
