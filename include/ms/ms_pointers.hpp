@@ -24,40 +24,6 @@
 #ifndef _MS_POINTERS_HH
 #define _MS_POINTERS_HH
 
-#ifndef DCHECK_HPP
-#define DCHECK_HPP
-#include <string>
-#include <sstream>
-#include <stdexcept>
-
-#ifndef DCHECK
-#ifdef NDEBUG
-#define ON_DEBUG(x)
-#define DCHECK_(x,y,z)
-#define DCHECK(x) 
-#define DCHECK_EQ(x, y) 
-#define DCHECK_NE(x, y) 
-#define DCHECK_LE(x, y) 
-#define DCHECK_LT(x, y) 
-#define DCHECK_GE(x, y) 
-#define DCHECK_GT(x, y) 
-#else//NDEBUG
-#define ON_DEBUG(x) x
-#define DCHECK_(x,y,z) \
-  if (!(x)) throw std::runtime_error(std::string(" in file ") + __FILE__ + ':' + std::to_string(__LINE__) + (" the check failed: " #x) + ", we got " + std::to_string(y) + " vs " + std::to_string(z))
-#define DCHECK(x) \
-  if (!(x)) throw std::runtime_error(std::string(" in file ") + __FILE__ + ':' + std::to_string(__LINE__) + (" the check failed: " #x))
-#define DCHECK_EQ(x, y) DCHECK_((x) == (y), x,y)
-#define DCHECK_NE(x, y) DCHECK_((x) != (y), x,y)
-#define DCHECK_LE(x, y) DCHECK_((x) <= (y), x,y)
-#define DCHECK_LT(x, y) DCHECK_((x) < (y) ,x,y)
-#define DCHECK_GE(x, y) DCHECK_((x) >= (y),x,y )
-#define DCHECK_GT(x, y) DCHECK_((x) > (y) ,x,y)
-#endif //NDEBUG
-#endif //DCHECK
-#endif /* DCHECK_HPP */
-
-
 #include <common.hpp>
 
 #include <malloc_count.h>
@@ -67,41 +33,14 @@
 
 #include <r_index.hpp>
 
-#include<ms_rle_string.hpp>
-
-#include "PlainSlp.hpp"
-#include "PoSlp.hpp"
-#include "ShapedSlp_Status.hpp"
-#include "ShapedSlp.hpp"
-#include "ShapedSlpV2.hpp"
-#include "SelfShapedSlp.hpp"
-#include "SelfShapedSlpV2.hpp"
-#include "DirectAccessibleGammaCode.hpp"
-#include "IncBitLenCode.hpp"
-#include "FixedBitLenCode.hpp"
-#include "SelectType.hpp"
-#include "VlcVec.hpp"
-
-using var_t = uint32_t;
-using Fblc = FixedBitLenCode<>;
-using SelSd = SelectSdvec<>;
-using SelMcl = SelectMcl<>;
-using DagcSd = DirectAccessibleGammaCode<SelSd>;
-using DagcMcl = DirectAccessibleGammaCode<SelMcl>;
-using Vlc64 = VlcVec<sdsl::coder::elias_delta, 64>;
-using Vlc128 = VlcVec<sdsl::coder::elias_delta, 128>;
-
+#include <ms_rle_string.hpp>
 
 template <class sparse_bv_type = ri::sparse_sd_vector,
-          class rle_string_t = ms_rle_string_sd,
-          class SlpT = SelfShapedSlp<var_t, DagcSd, DagcSd, SelSd>
-          >
+          class rle_string_t = ms_rle_string_sd>
 class ms_pointers : ri::r_index<sparse_bv_type, rle_string_t>
 {
 public:
-
-    // std::vector<size_t> thresholds;
-    SlpT slp;
+    std::vector<size_t> thresholds;
 
     // std::vector<ulint> samples_start;
     int_vector<> samples_start;
@@ -122,8 +61,9 @@ public:
 
     typedef size_t size_type;
 
-    ms_pointers(std::string filename) : 
-        ri::r_index<sparse_bv_type, rle_string_t>()
+    ms_pointers() {}
+
+    ms_pointers(std::string filename, bool rle = false) : ri::r_index<sparse_bv_type, rle_string_t>()
     {
         verbose("Building the r-index from BWT");
 
@@ -132,8 +72,27 @@ public:
         std::string bwt_fname = filename + ".bwt";
 
         verbose("RLE encoding BWT and computing SA samples");
-        std::ifstream ifs(bwt_fname);
-        this->bwt = rle_string_t(ifs); 
+
+        if (rle)
+        {
+            std::string bwt_heads_fname = bwt_fname + ".heads";
+            std::ifstream ifs_heads(bwt_heads_fname);
+            std::string bwt_len_fname = bwt_fname + ".len";
+            std::ifstream ifs_len(bwt_len_fname);
+            this->bwt = rle_string_t(ifs_heads, ifs_len);
+
+            ifs_heads.seekg(0);
+            ifs_len.seekg(0);
+            this->build_F_(ifs_heads, ifs_len);
+        }
+        else
+        {
+            std::ifstream ifs(bwt_fname);
+            this->bwt = rle_string_t(ifs);
+
+            ifs.seekg(0);
+            this->build_F(ifs);
+        }
         // std::string istring;
         // read_file(bwt_fname.c_str(), istring);
         // for(size_t i = 0; i < istring.size(); ++i)
@@ -142,21 +101,18 @@ public:
         // this->bwt = rle_string_t(istring);
 
         this->r = this->bwt.number_of_runs();
-        // ri::ulint n = this->bwt.size();
-        // int log_r = bitsize(uint64_t(this->r));
+        ri::ulint n = this->bwt.size();
+        int log_r = bitsize(uint64_t(this->r));
         int log_n = bitsize(uint64_t(this->bwt.size()));
 
-        verbose("Number of BWT equal-letter runs: r = " , this->r);
-        verbose("Rate n/r = " , double(this->bwt.size()) / this->r);
-        verbose("log2(r) = " , log2(double(this->r)));
-        verbose("log2(n/r) = " , log2(double(this->bwt.size()) / this->r));
+        verbose("Number of BWT equal-letter runs: r = ", this->r);
+        verbose("Rate n/r = ", double(this->bwt.size()) / this->r);
+        verbose("log2(r) = ", log2(double(this->r)));
+        verbose("log2(n/r) = ", log2(double(this->bwt.size()) / this->r));
 
-        ifs.seekg(0);
-        this->build_F(ifs);
         // this->build_F(istring);
         // istring.clear();
         // istring.shrink_to_fit();
-
 
         read_samples(filename + ".ssa", this->r, log_n, samples_start);
         read_samples(filename + ".esa", this->r, log_n, this->samples_last);
@@ -166,23 +122,39 @@ public:
         verbose("R-index construction complete");
         verbose("Memory peak: ", malloc_count_peak());
         verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
-        verbose(3);
 
+        verbose("Reading thresholds from file");
 
-        {
-            verbose("Load Grammar");
-            t_insert_start = std::chrono::high_resolution_clock::now();
+        t_insert_start = std::chrono::high_resolution_clock::now();
 
-            ifstream fs(filename + ".slp");
-            slp.load(fs);
+        std::string tmp_filename = filename + std::string(".thr_pos");
 
-            t_insert_end = std::chrono::high_resolution_clock::now();
-            verbose("Memory peak: ", malloc_count_peak());
-            verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
-        }
-        verbose("text length: ", slp.getLen());
-        verbose("bwt length: ", this->bwt.size());
-        DCHECK_EQ(slp.getLen()+1, this->bwt.size());
+        struct stat filestat;
+        FILE *fd;
+
+        if ((fd = fopen(tmp_filename.c_str(), "r")) == nullptr)
+            error("open() file " + tmp_filename + " failed");
+
+        int fn = fileno(fd);
+        if (fstat(fn, &filestat) < 0)
+            error("stat() file " + tmp_filename + " failed");
+
+        if (filestat.st_size % THRBYTES != 0)
+            error("invilid file " + tmp_filename);
+
+        size_t length = filestat.st_size / THRBYTES;
+        thresholds.resize(length);
+
+        for (size_t i = 0; i < length; ++i)
+            if ((fread(&thresholds[i], THRBYTES, 1, fd)) != 1)
+                error("fread() file " + tmp_filename + " failed");
+
+        fclose(fd);
+
+        t_insert_end = std::chrono::high_resolution_clock::now();
+
+        verbose("Memory peak: ", malloc_count_peak());
+        verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
     }
 
     void read_samples(std::string filename, ulint r, int log_n, int_vector<> &samples)
@@ -201,7 +173,7 @@ public:
         if (filestat.st_size % SSABYTES != 0)
             error("invilid file " + filename);
 
-        size_t length = filestat.st_size / (2*SSABYTES);
+        size_t length = filestat.st_size / (2 * SSABYTES);
         //Check that the length of the file is 2*r elements of 5 bytes
         assert(length == r);
 
@@ -212,7 +184,7 @@ public:
         uint64_t left = 0;
         uint64_t right = 0;
         size_t i = 0;
-        while (fread((char *)&left, SSABYTES, 1, fd) && fread((char *)&right, SSABYTES, 1,fd))
+        while (fread((char *)&left, SSABYTES, 1, fd) && fread((char *)&right, SSABYTES, 1, fd))
         {
             ulint val = (right ? right - 1 : r - 1);
             assert(bitsize(uint64_t(val)) <= log_n);
@@ -222,132 +194,105 @@ public:
         fclose(fd);
     }
 
-    void write_int(ostream& os, const size_t& i){
-      os.write(reinterpret_cast<const char*>(&i), sizeof(size_t));
+    vector<ulint> build_F_(std::ifstream &heads, std::ifstream &lengths)
+    {
+        heads.clear();
+        heads.seekg(0);
+        lengths.clear();
+        lengths.seekg(0);
+
+        this->F = vector<ulint>(256, 0);
+        int c;
+        ulint i = 0;
+        while ((c = heads.get()) != EOF)
+        {
+            size_t length;
+            lengths.read((char *)&length, 5);
+            if (c > TERMINATOR)
+                this->F[c] += length;
+            else
+            {
+                this->F[TERMINATOR] += length;
+                this->terminator_position = i;
+            }
+            i++;
+        }
+        for (ulint i = 255; i > 0; --i)
+            this->F[i] = this->F[i - 1];
+        this->F[0] = 0;
+        for (ulint i = 1; i < 256; ++i)
+            this->F[i] += this->F[i - 1];
+        return this->F;
     }
 
     // Computes the matching statistics pointers for the given pattern
-    //std::pair<std::vector<size_t>, std::vector<size_t>> 
-    void query(const std::vector<uint8_t>& pattern, const std::string& len_filename, const std::string& ref_filename) {
+    std::vector<size_t> query(const std::vector<uint8_t> &pattern)
+    {
+        size_t m = pattern.size();
 
-        ofstream len_file(len_filename, std::ios::binary);
-        ofstream ref_file(ref_filename, std::ios::binary);
+        std::vector<size_t> ms_pointers(m);
 
-        const size_t m = pattern.size();
-        const size_t n = slp.getLen();
-        verbose("pattern length: ", m);
-        
-        size_t last_len;
-        size_t last_ref;
+        // Start with the empty string
+        auto pos = this->bwt_size() - 1;
+        auto sample = this->get_last_run_sample();
 
-        auto write_len = [&] (const size_t i) { 
-          last_len = i;
-          write_int(len_file, last_len);
-        };
-        auto write_ref = [&] (const size_t i) { 
-          last_ref = i;
-          write_int(ref_file, last_ref);
-        };
-
-        //TODO: we could allocate the file here and store the numbers *backwards* !
-        ON_DEBUG(std::vector<size_t> ms_references(m,0)); //! stores at (m-i)-th entry the text position of the match with pattern[m-i..] when computing the matching statistics of pattern[m-i-1..]
-        ON_DEBUG(std::vector<size_t> ms_lengths(m,1));
-        ON_DEBUG(ms_lengths[m-1] = 1);
-        write_len(1);
-
-
-        //!todo: we need here a while look in case that we want to support suffixes of the pattern that are not part of the text
-        DCHECK_GT(this->bwt.number_of_letter(pattern[m-1]), 0);
-
-        //! Start with the last character
-        auto pos = this->bwt.select(1, pattern[m-1]);
+        for (size_t i = 0; i < pattern.size(); ++i)
         {
-            const ri::ulint run_of_j = this->bwt.run_of_position(pos);
-            ON_DEBUG(ms_references[m-1] = samples_start[run_of_j]);
-            write_ref(samples_start[run_of_j]);
-            DCHECK_EQ(slp.charAt(ms_references[m-1]),  pattern[m-1]);
-        }
-        pos = LF(pos, pattern[m-1]);
+            auto c = pattern[m - i - 1];
 
-        for (size_t i = 1; i < pattern.size(); ++i) {
-            const auto c = pattern[m - i - 1];
-            DCHECK_EQ(ms_lengths[m-i], last_len);
-            ON_DEBUG(DCHECK_EQ(ms_references[m-i], last_ref));
-
-            if (this->bwt.number_of_letter(c) == 0) {
-                ON_DEBUG(ms_lengths[m-i-1] = 0);
-                write_len(0);
-                last_len = 0; write_int(len_file, last_len);
-                // std::cout << "2 letter " << c  << " not found for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
-                ON_DEBUG(ms_references[m - i - 1] = 0);
-                write_ref(0);
-            } 
-            else if (pos < this->bwt.size() && this->bwt[pos] == c) {
-                DCHECK_NE(i, 0);
-                ON_DEBUG(ms_lengths[m-i-1] = ms_lengths[m-i]+1);
-                write_len(last_len+1);
-                // std::cout << "0 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
-
-                DCHECK_GT(ms_references[m - i], 0);
-                ON_DEBUG(ms_references[m - i - 1] = ms_references[m - i]-1);
-                DCHECK_GT(last_ref, 0);
-                write_ref(last_ref-1);
+            if (this->bwt.number_of_letter(c) == 0)
+            {
+                sample = 0;
             }
-            else {
-                const ri::ulint rank = this->bwt.rank(pos, c);
-                size_t len0 = 0;
-                size_t len1 = 0;
-                size_t ref0 = 0;
-                size_t ref1 = 0;
-                size_t sa0 = 0;
-                size_t sa1 = 0;
-
-                if(rank < this->bwt.number_of_letter(c)) {
-                    sa1 = this->bwt.select(rank, c);
-                    const ri::ulint run1 = this->bwt.run_of_position(sa1);
-                    const size_t textposStart = this->samples_start[run1];
-                    const size_t lenStart = textposStart+1 >= n ? 0 : lceToRBounded(slp, textposStart+1, last_ref, last_len);
-                    // ON_DEBUG(
-                    //         const size_t textposLast = this->samples_last[run1];
-                    //         const size_t lenLast = lceToRBounded(slp, textposLast+1, ms_references[m-i]);
-                    //         DCHECK_GT(lenStart, lenLast);
-                    // )
-                    ref1 = textposStart;
-                    len1 = lenStart;
-                }
-                if(rank > 0) {
-                    sa0 = this->bwt.select(rank-1, c);
-                    const ri::ulint run0 = this->bwt.run_of_position(sa0);
-
-                    const size_t textposLast = this->samples_last[run0];
-                    const size_t lenLast = textposLast+1 >= n ? 0 : lceToRBounded(slp, textposLast+1, last_ref, last_len);
-                    // ON_DEBUG( //sanity check
-                    //         const size_t textposStart = this->samples_start[run0];
-                    //         const size_t lenStart = lceToRBounded(slp, textposStart+1, ms_references[m-i], ms_lengths[m-1]);
-                    //         DCHECK_LE(lenStart, lenLast);
-                    // )
-                    ref0 = textposLast;
-                    len0 = lenLast;
-                }
-                if(len0 < len1) {
-                    len0 = len1;
-                    ref0 = ref1;
-                    sa0 = sa1;
-                }
-                    
-                ON_DEBUG(ms_lengths[m-i-1] = 1 + std::min(ms_lengths[m-i],len0));
-                write_len(1 + std::min(last_len,len0));
-                ON_DEBUG(ms_references[m-i-1] = ref0);
-                write_ref(ref0);
-                pos = sa0;
-
-                DCHECK_GT(ms_lengths[m-i-1], 0);
-                // std::cout << "1 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << " with LCE " << std::max(len1,len0) << std::endl;
+            else if (pos < this->bwt.size() && this->bwt[pos] == c)
+            {
+                sample--;
             }
-            pos = LF(pos, c); //! Perform one backward step
+            else
+            {
+                // Get threshold
+                ri::ulint rnk = this->bwt.rank(pos, c);
+                size_t thr = this->bwt.size() + 1;
+
+                ulint next_pos = pos;
+
+                // if (rnk < (this->F[c] - this->F[c-1]) // I can use F to compute it
+                if (rnk < this->bwt.number_of_letter(c))
+                {
+                    // j is the first position of the next run of c's
+                    ri::ulint j = this->bwt.select(rnk, c);
+                    ri::ulint run_of_j = this->bwt.run_of_position(j);
+
+                    thr = thresholds[run_of_j]; // If it is the first run thr = 0
+
+                    // Here we should use Phi_inv that is not implemented yet
+                    // sample = this->Phi(this->samples_last[run_of_j - 1]) - 1;
+                    sample = samples_start[run_of_j];
+
+                    next_pos = j;
+                }
+
+                if (pos < thr)
+                {
+
+                    rnk--;
+                    ri::ulint j = this->bwt.select(rnk, c);
+                    ri::ulint run_of_j = this->bwt.run_of_position(j);
+                    sample = this->samples_last[run_of_j];
+
+                    next_pos = j;
+                }
+
+                pos = next_pos;
+            }
+
+            ms_pointers[m - i - 1] = sample;
+
+            // Perform one backward step
+            pos = LF(pos, c);
         }
 
-        // return std::make_pair(ms_lengths, ms_references);
+        return ms_pointers;
     }
 
     /*
@@ -380,9 +325,8 @@ public:
         written_bytes += my_serialize(this->F, out, child, "F");
         written_bytes += this->bwt.serialize(out);
         written_bytes += this->samples_last.serialize(out);
-        //TODO: serialize SLP
 
-        // written_bytes += my_serialize(thresholds, out, child, "thresholds");
+        written_bytes += my_serialize(thresholds, out, child, "thresholds");
         // written_bytes += my_serialize(samples_start, out, child, "samples_start");
         written_bytes += samples_start.serialize(out, child, "samples_start");
 
@@ -400,11 +344,9 @@ public:
         my_load(this->F, in);
         this->bwt.load(in);
         this->r = this->bwt.number_of_runs();
-        this->pred.load(in);
         this->samples_last.load(in);
-        this->pred_to_run.load(in);
 
-        // my_load(thresholds,in);
+        my_load(thresholds, in);
         samples_start.load(in);
         // my_load(samples_start,in);
     }
@@ -415,64 +357,63 @@ public:
     //     return (samples_last[r - 1] + 1) % bwt.size();
     // }
 
-    protected :
+protected:
+    // // From r-index
+    // vector<ulint> build_F(std::ifstream &ifs)
+    // {
+    //     ifs.clear();
+    //     ifs.seekg(0);
+    //     F = vector<ulint>(256, 0);
+    //     uchar c;
+    //     ulint i = 0;
+    //     while (ifs >> c)
+    //     {
+    //         if (c > TERMINATOR)
+    //             F[c]++;
+    //         else
+    //         {
+    //             F[TERMINATOR]++;
+    //             terminator_position = i;
+    //         }
+    //         i++;
+    //     }
+    //     for (ulint i = 255; i > 0; --i)
+    //         F[i] = F[i - 1];
+    //     F[0] = 0;
+    //     for (ulint i = 1; i < 256; ++i)
+    //         F[i] += F[i - 1];
+    //     return F;
+    // }
 
-        // // From r-index
-        // vector<ulint> build_F(std::ifstream &ifs)
-        // {
-        //     ifs.clear();
-        //     ifs.seekg(0);
-        //     F = vector<ulint>(256, 0);
-        //     uchar c;
-        //     ulint i = 0;
-        //     while (ifs >> c)
-        //     {
-        //         if (c > TERMINATOR)
-        //             F[c]++;
-        //         else
-        //         {
-        //             F[TERMINATOR]++;
-        //             terminator_position = i;
-        //         }
-        //         i++;
-        //     }
-        //     for (ulint i = 255; i > 0; --i)
-        //         F[i] = F[i - 1];
-        //     F[0] = 0;
-        //     for (ulint i = 1; i < 256; ++i)
-        //         F[i] += F[i - 1];
-        //     return F;
-        // }
+    // // From r-index
+    // vector<pair<ulint, ulint>> &read_run_starts(std::string fname, ulint n, vector<pair<ulint, ulint>> &ssa)
+    // {
+    //     ssa.clear();
+    //     std::ifstream ifs(fname);
+    //     uint64_t x = 0;
+    //     uint64_t y = 0;
+    //     uint64_t i = 0;
+    //     while (ifs.read((char *)&x, 5) && ifs.read((char *)&y, 5))
+    //     {
+    //         ssa.push_back(pair<ulint, ulint>(y ? y - 1 : n - 1, i));
+    //         i++;
+    //     }
+    //     return ssa;
+    // }
 
-        // // From r-index
-        // vector<pair<ulint, ulint>> &read_run_starts(std::string fname, ulint n, vector<pair<ulint, ulint>> &ssa)
-        // {
-        //     ssa.clear();
-        //     std::ifstream ifs(fname);
-        //     uint64_t x = 0;
-        //     uint64_t y = 0;
-        //     uint64_t i = 0;
-        //     while (ifs.read((char *)&x, 5) && ifs.read((char *)&y, 5))
-        //     {
-        //         ssa.push_back(pair<ulint, ulint>(y ? y - 1 : n - 1, i));
-        //         i++;
-        //     }
-        //     return ssa;
-        // }
-
-        // // From r-index
-        // vector<ulint> &read_run_ends(std::string fname, ulint n, vector<ulint> &esa)
-        // {
-        //     esa.clear();
-        //     std::ifstream ifs(fname);
-        //     uint64_t x = 0;
-        //     uint64_t y = 0;
-        //     while (ifs.read((char *)&x, 5) && ifs.read((char *)&y, 5))
-        //     {
-        //         esa.push_back(y ? y - 1 : n - 1);
-        //     }
-        //     return esa;
-        // }
-    };
+    // // From r-index
+    // vector<ulint> &read_run_ends(std::string fname, ulint n, vector<ulint> &esa)
+    // {
+    //     esa.clear();
+    //     std::ifstream ifs(fname);
+    //     uint64_t x = 0;
+    //     uint64_t y = 0;
+    //     while (ifs.read((char *)&x, 5) && ifs.read((char *)&y, 5))
+    //     {
+    //         esa.push_back(y ? y - 1 : n - 1);
+    //     }
+    //     return esa;
+    // }
+};
 
 #endif /* end of include guard: _MS_POINTERS_HH */
