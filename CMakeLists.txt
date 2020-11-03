@@ -65,3 +65,4 @@ add_subdirectory(test/src)
 # add_subdirectory(benchmarks/src)
 
 configure_file(${PROJECT_SOURCE_DIR}/pipeline/moni ${PROJECT_BINARY_DIR}/moni)
+configure_file(${PROJECT_SOURCE_DIR}/pipeline/thresholds ${PROJECT_BINARY_DIR}/thresholds)
