@@ -83,6 +83,12 @@ int main(int argc, char *const argv[]) {
   Args args;
   parseArgs(argc, argv, args);
 
+#ifdef NDEBUG
+  verbose("RELEASE build");
+#else
+  verbose("DEBUG build");
+#endif
+
   verbose("Deserializing the phoni index");
   std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
 

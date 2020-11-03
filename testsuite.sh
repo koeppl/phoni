@@ -19,6 +19,7 @@ while [ 1 ]; do
 	set -e
 	# if [[ ! -e $rdataset.bwt ]]; then
 		/home/niki/code/pfp/moni/debug/moni -f $rdataset
+		/home/niki/code/pfp/moni/debug/test/src/bwt2rlbwt $rdataset
 		rm $rdataset.R $rdataset.C $rdataset.slp
 		[[ ! -f $rdataset.plain ]] && ~/extractfasta.py $rdataset > $rdataset.plain
 		cd /home/niki/code/pfp/rrepair/build/ && /home/niki/code/pfp/rrepair/build/rrepair $rdataset.plain 10 100 10 100000000
