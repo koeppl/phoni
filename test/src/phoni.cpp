@@ -75,7 +75,7 @@ std::vector<pattern_t> read_patterns(std::string filename)
   return patterns;
 }
 
-    void read_int(istream& is, size_t& i){
+   inline static void read_int(istream& is, size_t& i){
       is.read(reinterpret_cast<char*>(&i), sizeof(size_t));
     }
 
