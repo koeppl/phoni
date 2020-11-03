@@ -10,6 +10,7 @@ using namespace std;
 int main(int argc, char *const argv[]) {
 	if(argc < 2) {
 		std::cerr << "Usage: " << argv[0] << " textfilename " << std::endl;
+		return 1;
 	}
 	const std::string s = argv[1];
 	ifstream bwtfile(s + ".bwt");
