@@ -22,6 +22,7 @@ bigbwt_dirname          = os.path.join(dirname, "_deps/bigbwt-build")
 bigrepair_dirname       = os.path.join(dirname, "_deps/bigrepair-src")
 thresholds_dirname      = os.path.join(dirname, "_deps/pfp_thresholds-build/test/src")
 compress_dirname        = os.path.join(dirname, "test/src")
+rlbwt_dirname           = os.path.join(dirname, "test/src")
 shaped_slp_dirname      = os.path.join(dirname, "_deps/shaped_slp-build")
 
 parse_exe               = os.path.join(bigbwt_dirname, "pscan.x")
@@ -39,6 +40,8 @@ pfp_thresholds          = os.path.join(thresholds_dirname, "pfp_thresholds")
 pfp_thresholds64        = os.path.join(thresholds_dirname, "pfp_thresholds64")
 
 compress_exe            = os.path.join(compress_dirname, "compress_dictionary")
+
+rlbwt_exe               = os.path.join(rlbwt_dirname, "rlbwt")
 
 repair_exe              = os.path.join(bigrepair_dirname,"repair/irepair")
 largerepair_exe         = os.path.join(bigrepair_dirname,"largeb_repair/irepair")
@@ -294,6 +297,13 @@ class BWT(threading.Thread):
       # if args.S: command += " -S"
       
       print("==== Computing final BWT. Command:", command)
+      if(execute_command(command,logfile,logfile_name)!=True):
+        return
+
+      command = "{exe} {file}".format(
+                exe = rlbwt_exe, file=args.input + ".bwt")
+                
+      print("==== Run-length encoding the BWT. Command:", command)
       if(execute_command(command,logfile,logfile_name)!=True):
         return
       print("BWT Elapsed time: {0:.4f}".format(time.time()-start))      
