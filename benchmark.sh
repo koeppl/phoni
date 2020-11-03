@@ -49,14 +49,14 @@ indexedms_pprg=$PHONI_ROOTDIR/splitpattern.py
 indexedms_tprg=$PHONI_ROOTDIR/catfasta.py
 pattern_dir=$DATASET_DIR/samplesdir
 
-ms_prg=$PHONI_BULIDDIR/src/phoni
-msbuild_prg=$PHONI_BULIDDIR/src/build_phoni
-rlbwt_prg=$PHONI_BULIDDIR/src/bwt2rlbwt
+ms_prg=$PHONI_BULIDDIR/test/src/phoni
+msbuild_prg=$PHONI_BULIDDIR/test/src/build_phoni
+rlbwt_prg=$PHONI_BULIDDIR/test/src/bwt2rlbwt
 
 
 datasets=(chr19.1.fa chr19.16.fa chr19.32.fa chr19.64.fa chr19.100.fa chr19.256.fa  chr19.512.fa) # chr19.1000.fa) #  chr19.100.fa  chr19.128.fa  chr19.16.fa  chr19.1.fa  chr19.256.fa  chr19.512.fa)
 #datasets=(chr19.64.fa) #chr19.16.fa chr19.100.fa chr19.128.fa chr19.256.fa  chr19.512.fa chr19.1000.fa) # chr19.256.fa  chr19.512.fa) #  chr19.100.fa  chr19.128.fa  chr19.16.fa  chr19.1.fa  chr19.256.fa  chr19.512.fa)
-datasets=(chr19.10.fa chr19.1000.fa)
+#datasets=(chr19.10.fa chr19.1000.fa)
 
 
 alias Time='/usr/bin/time --format="Wall Time: %e\nMax Memory: %M"'
@@ -179,12 +179,12 @@ for filename in $datasets; do
 		logFile=$LOG_DIR/$filename.phoni.${rrepair_round}.log
 		stats="$basestats type=phoni "
 		set -x
-		Time $ms_prg -f "$dataset" -p ${pattern}  > "$logFile" 2>&1
+		Time $ms_prg -f "$dataset" -p ${PATTERN_FILE}  > "$logFile" 2>&1
 		set +x
 		echo -n "$stats"
 		$readlog_prg $logFile
-		cp ${pattern}.lengths $LOG_DIR/$filename.phoni.${rrepair_round}.lengths
-		cp ${pattern}.pointers  $LOG_DIR/$filename.phoni.${rrepair_round}.pointers
+		cp ${PATTERN_FILE}.lengths $LOG_DIR/$filename.phoni.${rrepair_round}.lengths
+		cp ${PATTERN_FILE}.pointers  $LOG_DIR/$filename.phoni.${rrepair_round}.pointers
 		if [[ $rrepair_round -gt 0 ]]; then
 			echo -n "$basestats type=mscheck "
 			echo "check=\"$(diff -q $LOG_DIR/$filename.phoni.${rrepair_round}.lengths $LOG_DIR/$filename.phoni.0.lengths)\""
@@ -196,43 +196,43 @@ done
 
 
 
- ##################
- ## START indexedms
- ##################
-for filename in $datasets; do
-	dataset=$DATASET_DIR/$filename
-	test -e $dataset
-
-	basestats="RESULT file=${filename} "
-
-	if [[ ! -r $dataset.raw.fwd.stree ]]; then
-
-		logFile=$LOG_DIR/$filename.indexms.const.log
-		stats="$basestats type=indexedconst "
-
-		set -x
-		Time $indexedms_index_prg -s_path $dataset.raw > "$logFile" 2>&1
-		set +x
-
-		echo -n "$stats"
-		echo -n "fwdsize=$(stat --format="%s" $dataset.raw.fwd.stree) revsize=$(stat --format="%s" $dataset.raw.rev.stree) "
-		$readlog_prg $logFile
-	fi
- 
- for patternseq in $pattern_dir/[0-9]; do
-	patternnumber=$(basename $patternseq)
- 	logFile=$LOG_DIR/$filename.indexms.query.${patternnumber}log
- 	stats="$basestats type=indexedquery pattern=${patternnumber} "
- 
- 	set -x
- 	Time $indexedms_query_prg -s_path $dataset.raw -t_path $patternseq -load_cst 1 > "$logFile" 2>&1
- 	set +x
- 
- 	echo -n "$stats"
- 	$readlog_prg $logFile
- done
-
-done
+# ##################
+# ## START indexedms
+# ##################
+#for filename in $datasets; do
+#	dataset=$DATASET_DIR/$filename
+#	test -e $dataset
+#
+#	basestats="RESULT file=${filename} "
+#
+#	if [[ ! -r $dataset.raw.fwd.stree ]]; then
+#
+#		logFile=$LOG_DIR/$filename.indexms.const.log
+#		stats="$basestats type=indexedconst "
+#
+#		set -x
+#		Time $indexedms_index_prg -s_path $dataset.raw > "$logFile" 2>&1
+#		set +x
+#
+#		echo -n "$stats"
+#		echo -n "fwdsize=$(stat --format="%s" $dataset.raw.fwd.stree) revsize=$(stat --format="%s" $dataset.raw.rev.stree) "
+#		$readlog_prg $logFile
+#	fi
+# 
+# for patternseq in $pattern_dir/[0-9]; do
+#	patternnumber=$(basename $patternseq)
+#	logFile=$LOG_DIR/$filename.indexms.query.${patternnumber}log
+#	stats="$basestats type=indexedquery pattern=${patternnumber} "
+# 
+#	set -x
+#	Time $indexedms_query_prg -s_path $dataset.raw -t_path $patternseq -load_cst 1 > "$logFile" 2>&1
+#	set +x
+# 
+#	echo -n "$stats"
+#	$readlog_prg $logFile
+# done
+#
+#done
  ##################
  ## END indexedms
  ##################
