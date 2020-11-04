@@ -151,11 +151,11 @@ void map_file(const char *filename, T*& ptr, size_t& length){
         error("stat() file " + std::string(filename) + " failed" );
 
     if(filestat.st_size % sizeof(T) != 0)
-        error("invilid file " + std::string(filename));
+        error("invalid file " + std::string(filename));
 
     length = filestat.st_size / sizeof(T);
 
-    if ((ptr = mmap(NULL, filestat.st_size, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED)
+    if ((ptr = reinterpret_cast<T*>(mmap(NULL, filestat.st_size, PROT_READ, MAP_SHARED, fd, 0))) == MAP_FAILED)
         error("mmap() file " + std::string(filename) + " failed");
 }
 

@@ -112,15 +112,28 @@ int main(int argc, char *const argv[]) {
     verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
 
     {
-      ifstream len_file(std::string(args.filename) + ".binrev.length", std::ios::binary);
-      ifstream ref_file(std::string(args.filename) + ".binrev.pointers", std::ios::binary);
+      const size_t* len_file;
+      const size_t* ref_file;
+      size_t len_size;
+      size_t ref_size;
+
+      const std::string len_filename = std::string(args.filename) + ".binrev.length";
+      const std::string ref_filename = std::string(args.filename) + ".binrev.pointers";
+
+      map_file(len_filename.c_str(), len_file, len_size);
+      map_file(ref_filename.c_str(), ref_file, ref_size);
+
+      // ifstream len_file(std::string(args.filename) + ".binrev.length", std::ios::binary);
+      // ifstream ref_file(std::string(args.filename) + ".binrev.pointers", std::ios::binary);
       for(size_t i = 0; i < patternlength; ++i) {
-        size_t len;
-        size_t ref;
-        len_file.seekg((patternlength-i-1)*sizeof(size_t), std::ios_base::beg);
-        ref_file.seekg((patternlength-i-1)*sizeof(size_t), std::ios_base::beg);
-        read_int(len_file, len);
-        read_int(ref_file, ref);
+        const size_t len = len_file[patternlength-i-1];
+        const size_t ref = ref_file[patternlength-i-1];
+        // size_t len;
+        // size_t ref;
+        // len_file.seekg((patternlength-i-1)*sizeof(size_t), std::ios_base::beg);
+        // ref_file.seekg((patternlength-i-1)*sizeof(size_t), std::ios_base::beg);
+        // read_int(len_file, len);
+        // read_int(ref_file, ref);
         // DCHECK_EQ(lengths[i], len);
         // DCHECK_EQ(refs[i], ref);
         f_lengths << len << " ";

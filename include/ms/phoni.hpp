@@ -250,14 +250,22 @@ public:
     //std::pair<std::vector<size_t>, std::vector<size_t>> 
     size_t query(const std::string& patternfile, const std::string& len_filename, const std::string& ref_filename) {
 
-        ifstream p(patternfile);
-        p.seekg(0,ios_base::end);
-        const size_t m = p.tellg();
+      const char* p;
+      size_t m;
+      map_file(patternfile.c_str(), p, m);
 
         auto pattern_at = [&] (const size_t pos) {
-          p.seekg(pos, ios_base::beg);
-          return p.get();
+          return p[pos];
         };
+
+        // ifstream p(patternfile);
+        // p.seekg(0,ios_base::end);
+        // const size_t m = p.tellg();
+        //
+        // auto pattern_at = [&] (const size_t pos) {
+        //   p.seekg(pos, ios_base::beg);
+        //   return p.get();
+        // };
 
 
         ofstream len_file(len_filename, std::ios::binary);
