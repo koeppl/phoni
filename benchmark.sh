@@ -47,7 +47,8 @@ indexedms_query_prg=$INDEXEDMS_BUILDDIR/matching_stats_parallel.x
 
 indexedms_pprg=$PHONI_ROOTDIR/splitpattern.py
 indexedms_tprg=$PHONI_ROOTDIR/catfasta.py
-pattern_dir=$DATASET_DIR/samplesdir
+
+pattern_dir=${PATTERN_FILE}.dir
 
 ms_prg=$PHONI_BULIDDIR/test/src/phoni
 msbuild_prg=$PHONI_BULIDDIR/test/src/build_phoni

@@ -181,11 +181,10 @@ public:
         verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
         verbose(3);
 
-        load_grammar(filename);
+//load_grammar(filename);
 
         verbose("text length: ", slp.getLen());
         verbose("bwt length: ", this->bwt.size());
-        DCHECK_EQ(slp.getLen()+1, this->bwt.size());
     }
   
 
@@ -201,6 +200,7 @@ public:
             verbose("Memory peak: ", malloc_count_peak());
             verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
         }
+        DCHECK_EQ(slp.getLen()+1, this->bwt.size());
     }
 
 
@@ -248,12 +248,21 @@ public:
 
     // Computes the matching statistics pointers for the given pattern
     //std::pair<std::vector<size_t>, std::vector<size_t>> 
-    void query(const std::vector<uint8_t>& pattern, const std::string& len_filename, const std::string& ref_filename) {
+    size_t query(const std::string& patternfile, const std::string& len_filename, const std::string& ref_filename) {
+
+        ifstream p(patternfile);
+        p.seekg(0,ios_base::end);
+        const size_t m = p.tellg();
+
+        auto pattern_at = [&] (const size_t pos) {
+          p.seekg(pos, ios_base::beg);
+          return p.get();
+        };
+
 
         ofstream len_file(len_filename, std::ios::binary);
         ofstream ref_file(ref_filename, std::ios::binary);
 
-        const size_t m = pattern.size();
         const size_t n = slp.getLen();
         verbose("pattern length: ", m);
         
@@ -277,20 +286,20 @@ public:
 
 
         //!todo: we need here a while look in case that we want to support suffixes of the pattern that are not part of the text
-        DCHECK_GT(this->bwt.number_of_letter(pattern[m-1]), 0);
+        DCHECK_GT(this->bwt.number_of_letter(pattern_at(m-1)), 0);
 
         //! Start with the last character
-        auto pos = this->bwt.select(1, pattern[m-1]);
+        auto pos = this->bwt.select(1, pattern_at(m-1));
         {
             const ri::ulint run_of_j = this->bwt.run_of_position(pos);
             ON_DEBUG(ms_references[m-1] = samples_start[run_of_j]);
             write_ref(samples_start[run_of_j]);
-            DCHECK_EQ(slp.charAt(ms_references[m-1]),  pattern[m-1]);
+            DCHECK_EQ(slp.charAt(ms_references[m-1]),  pattern_at(m-1));
         }
-        pos = LF(pos, pattern[m-1]);
+        pos = LF(pos, pattern_at(m-1));
 
-        for (size_t i = 1; i < pattern.size(); ++i) {
-            const auto c = pattern[m - i - 1];
+        for (size_t i = 1; i < m; ++i) {
+            const auto c = pattern_at(m - i - 1);
             DCHECK_EQ(ms_lengths[m-i], last_len);
             ON_DEBUG(DCHECK_EQ(ms_references[m-i], last_ref));
 
@@ -366,8 +375,7 @@ public:
             }
             pos = LF(pos, c); //! Perform one backward step
         }
-
-        // return std::make_pair(ms_lengths, ms_references);
+        return m;
     }
 
     /*

@@ -30,49 +30,15 @@
 
 #include <malloc_count.h>
 
-typedef std::pair<std::string, std::vector<uint8_t>> pattern_t;
 
-std::vector<pattern_t> read_patterns(std::string filename)
-{
-  // Open File
-  FILE *fd;
-  if ((fd = fopen(filename.c_str(), "r")) == nullptr)
-    error("open() file " + filename + " failed");
-
-  std::vector<pattern_t> patterns;
-
-  pattern_t pattern;
-
-  char c;
-  while (fread(&c, sizeof(char), 1, fd) == 1)
-  {
-    if (c == '>')
-    {
-      if (pattern.second.size() > 0)
-        patterns.push_back(pattern);
-
-      pattern.first.clear();
-      pattern.second.clear();
-
-      pattern.first.append(1, c);
-      while (fread(&c, sizeof(char), 1, fd) == 1 && c != '\n')
-        pattern.first.append(1, c);
-    }
-    else
-    {
-      pattern.second.push_back(c);
-      while (fread(&c, sizeof(char), 1, fd) == 1 && c != '\n')
-        pattern.second.push_back(c);
-    }
+std::vector<std::string> read_pattern_desc(const std::string& patternpath) {
+  std::vector<std::string> descs;
+  ifstream is(patternpath + "desc.txt");
+  std::string line;
+  while (std::getline(is, line)) {
+    descs.push_back(line);
   }
-
-  if (pattern.second.size() > 0)
-    patterns.push_back(pattern);
-
-  fclose(fd);
-  verbose("Number of patterns: ", patterns.size());
-
-  return patterns;
+  return descs;
 }
 
    inline static void read_int(istream& is, size_t& i){
@@ -89,7 +55,9 @@ int main(int argc, char *const argv[]) {
   verbose("DEBUG build");
 #endif
 
-  verbose("Deserializing the phoni index");
+  verbose("Memory peak: ", malloc_count_peak());
+
+  verbose("Deserializing the PHONI index");
   std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
 
 
@@ -101,14 +69,15 @@ int main(int argc, char *const argv[]) {
 
   std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
 
-  verbose("Matching statistics index construction complete");
+  verbose("PHONI index construction complete");
   verbose("Memory peak: ", malloc_count_peak());
   verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
 
   verbose("Reading patterns");
   t_insert_start = std::chrono::high_resolution_clock::now();
+  const std::string patterndir = args.patterns + ".dir/";
 
-  std::vector<pattern_t> patterns = read_patterns(args.patterns);
+  std::vector<std::string> patterndescs = read_pattern_desc(patterndir);
 
   t_insert_end = std::chrono::high_resolution_clock::now();
 
@@ -127,16 +96,24 @@ int main(int argc, char *const argv[]) {
   if (!f_lengths.is_open())
     error("open() file " + std::string(args.filename) + ".lengths failed");
 
-  for (auto pattern : patterns) {
-  verbose("Processing pattern ", pattern.first);
-   f_lengths << pattern.first << endl;
+  for(size_t patternid = 0; patternid < patterndescs.size(); ++patternid){
+    const std::string& patterndesc = patterndescs[patternid];
+    verbose("Processing pattern ", patterndesc);
+    f_lengths << ">" << patterndesc << " " << endl;
+    f_pointers << ">" << patterndesc << " " << endl;
+    const std::string patternfilename = patterndir +  std::to_string(patternid);
     //auto [lengths,refs] = 
-    ms.query(pattern.second, std::string(args.filename) + ".binrev.length",  std::string(args.filename) + ".binrev.pointers");
+    
+    t_insert_start = std::chrono::high_resolution_clock::now();
+    const size_t patternlength = ms.query(patternfilename, std::string(args.filename) + ".binrev.length",  std::string(args.filename) + ".binrev.pointers");
+    t_insert_end = std::chrono::high_resolution_clock::now();
+    verbose("Finished processing pattern ", patterndesc);
+    verbose("Memory peak: ", malloc_count_peak());
+    verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
 
     {
       ifstream len_file(std::string(args.filename) + ".binrev.length", std::ios::binary);
       ifstream ref_file(std::string(args.filename) + ".binrev.pointers", std::ios::binary);
-      const size_t patternlength = pattern.second.size();
       for(size_t i = 0; i < patternlength; ++i) {
         size_t len;
         size_t ref;

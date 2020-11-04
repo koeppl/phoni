@@ -38,17 +38,22 @@ while [ 1 ]; do
 		genDNA 100 >> $pattern
 	done
 
+	[[ -d ${pattern}.dir ]] && rm -r ${pattern}.dir
+	mkdir -p ${pattern}.dir
+	/home/niki/code/pfp/moni/splitpattern.py $pattern ${pattern}.dir
+	[[ -d ${pattern}2.dir ]] && rm -r ${pattern}2.dir
+	cp -a ${pattern}.dir ${pattern}2.dir
+
 	set -x
 	/home/niki/code/pfp/moni/debug/test/src/build_phoni -f "$dataset"
-	/home/niki/code/pfp/moni/debug/test/src/phoni -f "$dataset" -p $pattern
+	/home/niki/code/pfp/moni/debug/test/src/phoni -f "$dataset" -p "$pattern"
 	/home/niki/code/pfp/moni/build/_deps/pfp_thresholds-build/test/src/sdsl_matching_statistics -f "$dataset" -p $pattern
 	set +x
 	# /home/niki/code/pfp/moni/build/_deps/pfp_thresholds-build/test/src/matching_statistics -f "$dataset" -p $pattern
 	
-	cp $pattern ${pattern}2
 	set -x
 	/home/niki/code/pfp/moni/debug/test/src/build_phoni -f "$rdataset"
-	/home/niki/code/pfp/moni/debug/test/src/phoni -f "$rdataset" -p ${pattern}2
+	/home/niki/code/pfp/moni/debug/test/src/phoni -f "$rdataset" -p "$pattern"2
 	set +x
 
 	if ! diff -q $pattern.sdsl.lengths $pattern.lengths; then
