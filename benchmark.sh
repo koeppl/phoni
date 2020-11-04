@@ -13,11 +13,12 @@ PHONI_ROOTDIR=/home/dkoeppl/code/moni
 PHONI_BULIDDIR=$PHONI_ROOTDIR/build
 DATASET_DIR=/home/dkoeppl/data
 #INDEXEDMS_BUILDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/indexed_ms/fast_ms/bin/
-#RREPAIR_BULIDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/rrepair/build/
+RREPAIR_BULIDDIR=/home/dkoeppl/code/rrepair/external/repair/build/
 
 
-PATTERN_FILE=$DATASET_DIR/10_samples.fa
-LOG_DIR=$HOME/fast/log/
+PATTERN_FILE=$DATASET_DIR/chr19.10.fa
+LOG_DIR=$HOME/log/
+
 elif [[ $(hostname) = "elm" ]]; then
 
 PHONI_ROOTDIR=/s/nut/a/homes/dominik.koeppl/code/pfp/moni/
@@ -57,7 +58,7 @@ rlbwt_prg=$PHONI_BULIDDIR/test/src/bwt2rlbwt
 
 datasets=(chr19.1.fa chr19.16.fa chr19.32.fa chr19.64.fa chr19.100.fa chr19.256.fa  chr19.512.fa) # chr19.1000.fa) #  chr19.100.fa  chr19.128.fa  chr19.16.fa  chr19.1.fa  chr19.256.fa  chr19.512.fa)
 #datasets=(chr19.64.fa) #chr19.16.fa chr19.100.fa chr19.128.fa chr19.256.fa  chr19.512.fa chr19.1000.fa) # chr19.256.fa  chr19.512.fa) #  chr19.100.fa  chr19.128.fa  chr19.16.fa  chr19.1.fa  chr19.256.fa  chr19.512.fa)
-#datasets=(chr19.10.fa chr19.1000.fa)
+datasets=(chr19.10.fa chr19.1000.fa)
 
 
 alias Time='/usr/bin/time --format="Wall Time: %e\nMax Memory: %M"'
