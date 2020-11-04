@@ -37,7 +37,8 @@ else
 	die "need setting for host $hostname"
 fi
 
-moni_prg=$PHONI_BULIDDIR/no_thresholds
+base_prg=$PHONI_BULIDDIR/no_thresholds
+thresholds_prg=$PHONI_BULIDDIR/thresholds
 rrepair_prg=$RREPAIR_BULIDDIR/rrepair
 bigrepair_prg=$PHONI_BULIDDIR/_deps/bigrepair-src/bigrepair
 slpenc_prg=$PHONI_BULIDDIR/_deps/shaped_slp-build/SlpEncBuild
@@ -51,8 +52,9 @@ indexedms_tprg=$PHONI_ROOTDIR/catfasta.py
 
 pattern_dir=${PATTERN_FILE}.dir
 
-ms_prg=$PHONI_BULIDDIR/test/src/phoni
-msbuild_prg=$PHONI_BULIDDIR/test/src/build_phoni
+moni_prg=$PHONI_BULIDDIR/test/src/rlebwt_ms_build
+phoni_prg=$PHONI_BULIDDIR/test/src/phoni
+phonibuild_prg=$PHONI_BULIDDIR/test/src/build_phoni
 rlbwt_prg=$PHONI_BULIDDIR/test/src/bwt2rlbwt
 
 
@@ -86,8 +88,6 @@ done
 
 
 
-
-
 for filename in $datasets; do
 	dataset=$DATASET_DIR/$filename
 	test -e $dataset
@@ -99,7 +99,7 @@ for filename in $datasets; do
 		stats="$basestats type=baseconstruction "
 		logFile=$LOG_DIR/$filename.constr.log
 		set -x
-		Time $moni_prg -f $dataset > "$logFile" 2>&1
+		Time $base_prg -f $dataset > "$logFile" 2>&1
 		set +x
 		echo -n "$stats"
 		echo -n "bwtsize=$(stat --format="%s" $dataset.bwt) "
@@ -121,6 +121,36 @@ for filename in $datasets; do
 	fi
 
 	_basestats=$basestats
+
+	
+	#############
+	## BEGIN MONI
+	#############
+
+	if [[ ! -e $dataset.thr ]]; then
+		stats="$basestats type=thresholds "
+		logFile=$LOG_DIR/$filename.thresholds.log
+		set -x
+		Time $thresholds_prg -f $dataset > "$logFile" 2>&1
+		set +x
+		echo -n "$stats"
+		echo -n "thressize=$(stat --format="%s" $dataset.thr) "
+		echo -n "thrpossize=$(stat --format="%s" $dataset.thr_pos) "
+		$readlog_prg $logFile
+	fi
+
+	stats="$basestats type=moni "
+	logFile=$LOG_DIR/$filename.moni.log
+	set -x
+	Time $moni_prg -f $dataset -p $PATTERN_FILE > "$logFile" 2>&1
+	set +x
+	echo -n "$stats"
+	$readlog_prg $logFile
+
+	###########
+	## END MONI
+	###########
+
 	rawdataset=$dataset.raw
 	for rrepair_round in $(seq 0 2); do
 		basestats="$_basestats rrepair=$rrepair_round "
@@ -171,7 +201,7 @@ for filename in $datasets; do
 		logFile=$LOG_DIR/$filename.phonibuild.${rrepair_round}.log
 		stats="$basestats type=phonibuild "
 		set -x
-		Time $msbuild_prg -f "$dataset" > "$logFile" 2>&1
+		Time $phonibuild_prg -f "$dataset" > "$logFile" 2>&1
 		set +x
 		echo -n "$stats"
 		echo -n "phonisize=$(stat --format="%s" $dataset.phoni) "
@@ -181,7 +211,7 @@ for filename in $datasets; do
 		logFile=$LOG_DIR/$filename.phoni.${rrepair_round}.log
 		stats="$basestats type=phoni "
 		set -x
-		Time $ms_prg -f "$dataset" -p ${PATTERN_FILE}  > "$logFile" 2>&1
+		Time $phoni_prg -f "$dataset" -p ${PATTERN_FILE}  > "$logFile" 2>&1
 		set +x
 		echo -n "$stats"
 		$readlog_prg $logFile
