@@ -13,7 +13,7 @@ PHONI_ROOTDIR=/home/dkoeppl/code/moni
 PHONI_BULIDDIR=$PHONI_ROOTDIR/build
 DATASET_DIR=/home/dkoeppl/data
 #INDEXEDMS_BUILDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/indexed_ms/fast_ms/bin/
-RREPAIR_BULIDDIR=/home/dkoeppl/code/rrepair/external/repair/build/
+RREPAIR_BULIDDIR=/home/dkoeppl/code/rrepair/build/
 
 
 PATTERN_FILE=$DATASET_DIR/chr19.10.fa
@@ -60,7 +60,7 @@ rlbwt_prg=$PHONI_BULIDDIR/test/src/bwt2rlbwt
 
 datasets=(chr19.1.fa chr19.16.fa chr19.32.fa chr19.64.fa chr19.100.fa chr19.256.fa  chr19.512.fa) # chr19.1000.fa) #  chr19.100.fa  chr19.128.fa  chr19.16.fa  chr19.1.fa  chr19.256.fa  chr19.512.fa)
 #datasets=(chr19.64.fa) #chr19.16.fa chr19.100.fa chr19.128.fa chr19.256.fa  chr19.512.fa chr19.1000.fa) # chr19.256.fa  chr19.512.fa) #  chr19.100.fa  chr19.128.fa  chr19.16.fa  chr19.1.fa  chr19.256.fa  chr19.512.fa)
-datasets=(chr19.10.fa chr19.1000.fa)
+datasets=(chr19.1000.fa)
 
 
 alias Time='/usr/bin/time --format="Wall Time: %e\nMax Memory: %M"'
@@ -91,9 +91,9 @@ done
 for filename in $datasets; do
 	dataset=$DATASET_DIR/$filename
 	test -e $dataset
+	rawdataset=$dataset.raw
 
 	basestats="RESULT file=${filename} "
-
 
 	if [[ ! -e $dataset.bwt ]]; then 
 		stats="$basestats type=baseconstruction "
@@ -151,7 +151,6 @@ for filename in $datasets; do
 	## END MONI
 	###########
 
-	rawdataset=$dataset.raw
 	for rrepair_round in $(seq 0 2); do
 		basestats="$_basestats rrepair=$rrepair_round "
 		if [[ $rrepair_round -eq 0 ]]; then
