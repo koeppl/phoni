@@ -51,6 +51,9 @@ target_compile_options(build_phoni PUBLIC "-std=c++17")
 add_executable(bwt2rlbwt bwt2rlbwt.cpp)
 target_compile_options(bwt2rlbwt PUBLIC "-std=c++17")
 
+add_executable(patternstats patternstats.cpp)
+target_compile_options(patternstats PUBLIC "-std=c++17")
+
 add_executable(rlebwt_ms_build rlebwt_ms_build.cpp)
 target_link_libraries(rlebwt_ms_build common sdsl divsufsort divsufsort64 malloc_count ri)
 target_include_directories(rlebwt_ms_build PUBLIC    "../../include/ms" 
