@@ -314,10 +314,10 @@ public:
             if (this->bwt.number_of_letter(c) == 0) {
                 ON_DEBUG(ms_lengths[m-i-1] = 0);
                 write_len(0);
-                last_len = 0; write_int(len_file, last_len);
+                write_int(len_file, last_len);
                 // std::cout << "2 letter " << c  << " not found for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
-                ON_DEBUG(ms_references[m - i - 1] = 0);
-                write_ref(0);
+                ON_DEBUG(ms_references[m - i - 1] = 1);
+                write_ref(1);
             } 
             else if (pos < this->bwt.size() && this->bwt[pos] == c) {
                 DCHECK_NE(i, 0);
