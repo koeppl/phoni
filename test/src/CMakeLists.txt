@@ -24,6 +24,17 @@ target_include_directories(ms PUBLIC    "../../include/ms"
                                         )
 target_compile_options(ms PUBLIC "-std=c++17")
 
+add_executable(rlems rle_matching_statistics.cpp)
+target_link_libraries(rlems common sdsl divsufsort divsufsort64 malloc_count ri)
+target_include_directories(rlems PUBLIC    "../../include/ms" 
+                                        "../../include/common" 
+                                        "${shaped_slp_SOURCE_DIR}" 
+                                        "${FOLCA_SOURCE_DIR}" 
+                                        "${SUX_SOURCE_DIR}/function" 
+                                        "${SUX_SOURCE_DIR}/support"
+                                        )
+target_compile_options(rlems PUBLIC "-std=c++17")
+
 
 add_executable(phoni phoni.cpp)
 target_link_libraries(phoni common sdsl divsufsort divsufsort64 malloc_count ri)

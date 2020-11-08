@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 using namespace std;
 
 int main(const int argc, const char *const argv[]) {
@@ -16,33 +17,44 @@ int main(const int argc, const char *const argv[]) {
 
     {
         std::string lenfile = argv[1];
-        lenfile += ".binrev.length";
+        lenfile += ".lengths";
         ifstream is(lenfile);
         while(is) {
-            size_t i;
-            is.read((char*)&i, sizeof(i));
-            if(!is) { break; }
-
-            if(i > max) { max = i; }
-            avg += i;
-            ++len;
+            std::string line;
+            getline(is, line);
+            if(line[0] == '>') continue;
+            std::istringstream iss(line);
+			size_t number;
+			for (std::istringstream numbers_iss(line); numbers_iss >> number; ) {
+				if(number > max) { max = number; }
+				avg += number;
+				++len;
+	//		std::cout << number << endl;
+			}
         }
         is.close();
     }
     {
         std::string reffile = argv[1];
-        reffile += ".binrev.pointers";
+        reffile += ".pointers";
         ifstream is(reffile);
-        size_t prev = 0;
+        size_t prev = -1;
         while(is) {
-            size_t i;
-            is.read((char*)&i, sizeof(i));
-            if(!is) { break; }
-            if(i == prev-1) {
-                ++reducible;
-            }
-            prev = i;
-            std::cout << i << endl;
+            std::string line;
+            getline(is, line);
+            if(line[0] == '>') continue;
+            std::istringstream iss(line);
+			size_t number;
+			for (std::istringstream numbers_iss(line); numbers_iss >> number; ) {
+				if(number == prev+1) {
+					++reducible;
+				}
+				prev = number;
+				//std::cout << number << endl;
+			}
+                        prev = -1;
+
+
         }
     }
     
