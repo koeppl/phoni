@@ -66,3 +66,4 @@ add_subdirectory(test/src)
 
 configure_file(${PROJECT_SOURCE_DIR}/pipeline/moni ${PROJECT_BINARY_DIR}/moni)
 configure_file(${PROJECT_SOURCE_DIR}/pipeline/thresholds ${PROJECT_BINARY_DIR}/thresholds)
+configure_file(${PROJECT_SOURCE_DIR}/pipeline/no_thresholds ${PROJECT_BINARY_DIR}/no_thresholds)
