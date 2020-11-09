@@ -52,16 +52,18 @@ indexedms_tprg=$PHONI_ROOTDIR/catfasta.py
 
 pattern_dir=${PATTERN_FILE}.dir
 
-moni_prg=$PHONI_BULIDDIR/test/src/rlebwt_ms_build
+monibuild_prg=$PHONI_BULIDDIR/test/src/rlebwt_ms_build
+moni_prg=$PHONI_BULIDDIR/test/src/rlems
 phoni_prg=$PHONI_BULIDDIR/test/src/phoni
 phonibuild_prg=$PHONI_BULIDDIR/test/src/build_phoni
 rlbwt_prg=$PHONI_BULIDDIR/test/src/bwt2rlbwt
 
 
-datasets=(chr19.1.fa chr19.16.fa chr19.32.fa chr19.64.fa chr19.100.fa chr19.256.fa  chr19.512.fa) # chr19.1000.fa) #  chr19.100.fa  chr19.128.fa  chr19.16.fa  chr19.1.fa  chr19.256.fa  chr19.512.fa)
+datasets=(chr19.1.fa chr19.16.fa chr19.32.fa chr19.64.fa chr19.100.fa chr19.256.fa  chr19.512.fa chr19.1000.fa) #  chr19.100.fa  chr19.128.fa  chr19.16.fa  chr19.1.fa  chr19.256.fa  chr19.512.fa)
 #datasets=(chr19.64.fa) #chr19.16.fa chr19.100.fa chr19.128.fa chr19.256.fa  chr19.512.fa chr19.1000.fa) # chr19.256.fa  chr19.512.fa) #  chr19.100.fa  chr19.128.fa  chr19.16.fa  chr19.1.fa  chr19.256.fa  chr19.512.fa)
-datasets=(chr19.1000.fa)
+#datasets=(chr19.1000.fa)
 
+datasets=(chr19.32.fa chr19.64.fa chr19.100.fa chr19.256.fa  chr19.512.fa chr19.1000.fa)
 
 alias Time='/usr/bin/time --format="Wall Time: %e\nMax Memory: %M"'
 
@@ -123,33 +125,45 @@ for filename in $datasets; do
 	_basestats=$basestats
 
 	
-	#############
-	## BEGIN MONI
-	#############
+ #############
+ ## BEGIN MONI
+ #############
+ 
+ if [[ ! -e $dataset.thr ]]; then
+ 	stats="$basestats type=thresholds "
+ 	logFile=$LOG_DIR/$filename.thresholds.log
+ 	set -x
+ 	Time $thresholds_prg -f $dataset > "$logFile" 2>&1
+ 	set +x
+ 	echo -n "$stats"
+ 	echo -n "thressize=$(stat --format="%s" $dataset.thr) "
+ 	echo -n "thrpossize=$(stat --format="%s" $dataset.thr_pos) "
+ 	$readlog_prg $logFile
+ fi
 
-	if [[ ! -e $dataset.thr ]]; then
-		stats="$basestats type=thresholds "
-		logFile=$LOG_DIR/$filename.thresholds.log
-		set -x
-		Time $thresholds_prg -f $dataset > "$logFile" 2>&1
-		set +x
-		echo -n "$stats"
-		echo -n "thressize=$(stat --format="%s" $dataset.thr) "
-		echo -n "thrpossize=$(stat --format="%s" $dataset.thr_pos) "
-		$readlog_prg $logFile
-	fi
+ if [[ ! -e $dataset.ms ]]; then
+ stats="$basestats type=monibuild "
+ logFile=$LOG_DIR/$filename.monibuild.log
+ set -x
+ Time $monibuild_prg -f $dataset -p $PATTERN_FILE > "$logFile" 2>&1
+ set +x
+ echo -n "$stats"
+ $readlog_prg $logFile
+ fi
+ 
+ stats="$basestats type=moni "
+ logFile=$LOG_DIR/$filename.moni.log
+ set -x
+ Time $moni_prg -f $dataset -p $PATTERN_FILE > "$logFile" 2>&1
+ set +x
+ echo -n "$stats"
+ $readlog_prg $logFile
+ 
+ ###########
+ ## END MONI
+ ###########
 
-	stats="$basestats type=moni "
-	logFile=$LOG_DIR/$filename.moni.log
-	set -x
-	Time $moni_prg -f $dataset -p $PATTERN_FILE > "$logFile" 2>&1
-	set +x
-	echo -n "$stats"
-	$readlog_prg $logFile
-
-	###########
-	## END MONI
-	###########
+continue
 
 	for rrepair_round in $(seq 0 2); do
 		basestats="$_basestats rrepair=$rrepair_round "
