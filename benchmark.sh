@@ -159,80 +159,81 @@ for filename in $datasets; do
  ## END MONI
  ###########
 
-	# for rrepair_round in $(seq 0 0); do
-	# 	basestats="$_basestats rrepair=$rrepair_round "
-	# 	if [[ $rrepair_round -eq 0 ]]; then
-	# 		logFile=$LOG_DIR/$filename.repair.${rrepair_round}.log
-	# 		stats="$basestats type=repair "
-    #
-	# 		set -x
-	# 		Time $bigrepair_prg $rawdataset > "$logFile" 2>&1
-	# 		set +x
-    #
-	# 		echo -n "$stats"
-	# 		echo -n "Csize=$(stat --format="%s" $rawdataset.C) Rsize=$(stat --format="%s" $rawdataset.R) "
-	# 		$readlog_prg $logFile
-    #
-	# 		logFile=$LOG_DIR/$filename.grammar.${rrepair_round}.log
-	# 		stats="$basestats type=grammar "
-	# 		set -x
-	# 		Time $slpenc_prg -e SelfShapedSlp_SdSd_Sd -f Bigrepair -i $rawdataset -o $dataset.slp > "$logFile" 2>&1
-	# 		set +x
-	# 		echo -n "$stats"
-	# 		echo -n "slpsize=$(stat --format="%s" $dataset.slp) "
-	# 		$readlog_prg $logFile
-	# 	else 
-	# 		logFile=$LOG_DIR/$filename.repair.${rrepair_round}.log
-	# 		stats="$basestats type=repair "
-    #
-	# 		cd $(dirname $rrepair_prg)
-	# 		set -x
-	# 		Time $rrepair_prg $rawdataset 10 100 $rrepair_round 100000000 > "$logFile" 2>&1
-	# 		set +x
-    #
-	# 		echo -n "$stats"
-	# 		echo -n "Csize=$(stat --format="%s" $rawdataset.C) Rsize=$(stat --format="%s" $rawdataset.R) "
-	# 		$readlog_prg $logFile
-    #
-	# 		logFile=$LOG_DIR/$filename.grammar.${rrepair_round}.log
-	# 		stats="$basestats type=grammar "
-	# 		set -x
-	# 		Time $slpenc_prg -e SelfShapedSlp_SdSd_Sd -f rrepair -i $rawdataset -o $dataset.slp > "$logFile" 2>&1
-	# 		set +x
-	# 		echo -n "$stats"
-	# 		echo -n "slpsize=$(stat --format="%s" $dataset.slp) "
-	# 		$readlog_prg $logFile
-	# 	fi
-	rrepair_round=0
+ # rrepair_round = 0 : standard BigRepair
+ # rrepair_round > 0 : apply rrepair `rrepair_round` times on the input text
+ for rrepair_round in $(seq 0 2); do
+     basestats="$_basestats rrepair=$rrepair_round "
+     if [[ $rrepair_round -eq 0 ]]; then
+	 logFile=$LOG_DIR/$filename.repair.${rrepair_round}.log
+	 stats="$basestats type=repair "
 
- if [[ ! -e $dataset.phoni ]]; then
-		logFile=$LOG_DIR/$filename.phonibuild.${rrepair_round}.log
-		stats="$basestats type=phonibuild "
-		set -x
-		Time $phonibuild_prg -f "$dataset" > "$logFile" 2>&1
-		set +x
-		echo -n "$stats"
-		echo -n "phonisize=$(stat --format="%s" $dataset.phoni) "
-		$readlog_prg $logFile
- fi
+	 set -x
+	 Time $bigrepair_prg $rawdataset > "$logFile" 2>&1
+	 set +x
 
-		logFile=$LOG_DIR/$filename.phoni.${rrepair_round}.log
-		stats="$basestats type=phoni "
-		set -x
-		Time $phoni_prg -f "$dataset" -p ${PATTERN_FILE}  > "$logFile" 2>&1
-		set +x
-		echo -n "$stats"
-		$readlog_prg $logFile
-		cp ${PATTERN_FILE}.lengths $LOG_DIR/$filename.phoni.${rrepair_round}.lengths
-		cp ${PATTERN_FILE}.pointers  $LOG_DIR/$filename.phoni.${rrepair_round}.pointers
-		if [[ $rrepair_round -gt 0 ]]; then
-			echo -n "$basestats type=mscheck "
-			echo "check=\"$(diff -q $LOG_DIR/$filename.phoni.${rrepair_round}.lengths $LOG_DIR/$filename.phoni.0.lengths)\""
-		fi
-	# done
+	 echo -n "$stats"
+	 echo -n "Csize=$(stat --format="%s" $rawdataset.C) Rsize=$(stat --format="%s" $rawdataset.R) "
+	 $readlog_prg $logFile
+
+	 logFile=$LOG_DIR/$filename.grammar.${rrepair_round}.log
+	 stats="$basestats type=grammar "
+	 set -x
+	 Time $slpenc_prg -e SelfShapedSlp_SdSd_Sd -f Bigrepair -i $rawdataset -o $dataset.slp > "$logFile" 2>&1
+	 set +x
+	 echo -n "$stats"
+	 echo -n "slpsize=$(stat --format="%s" $dataset.slp) "
+	 $readlog_prg $logFile
+     else 
+	 logFile=$LOG_DIR/$filename.repair.${rrepair_round}.log
+	 stats="$basestats type=repair "
+
+	 cd $(dirname $rrepair_prg)
+	 set -x
+	 Time $rrepair_prg $rawdataset 10 100 $rrepair_round 100000000 > "$logFile" 2>&1
+	 set +x
+
+	 echo -n "$stats"
+	 echo -n "Csize=$(stat --format="%s" $rawdataset.C) Rsize=$(stat --format="%s" $rawdataset.R) "
+	 $readlog_prg $logFile
+
+	 logFile=$LOG_DIR/$filename.grammar.${rrepair_round}.log
+	 stats="$basestats type=grammar "
+	 set -x
+	 Time $slpenc_prg -e SelfShapedSlp_SdSd_Sd -f rrepair -i $rawdataset -o $dataset.slp > "$logFile" 2>&1
+	 set +x
+	 echo -n "$stats"
+	 echo -n "slpsize=$(stat --format="%s" $dataset.slp) "
+	 $readlog_prg $logFile
+     fi
+
+     if [[ ! -e $dataset.phoni ]]; then
+	 logFile=$LOG_DIR/$filename.phonibuild.${rrepair_round}.log
+	 stats="$basestats type=phonibuild "
+	 set -x
+	 Time $phonibuild_prg -f "$dataset" > "$logFile" 2>&1
+	 set +x
+	 echo -n "$stats"
+	 echo -n "phonisize=$(stat --format="%s" $dataset.phoni) "
+	 $readlog_prg $logFile
+     fi
+
+     logFile=$LOG_DIR/$filename.phoni.${rrepair_round}.log
+     stats="$basestats type=phoni "
+     set -x
+     Time $phoni_prg -f "$dataset" -p ${PATTERN_FILE}  > "$logFile" 2>&1
+     set +x
+     echo -n "$stats"
+     $readlog_prg $logFile
+     cp ${PATTERN_FILE}.lengths $LOG_DIR/$filename.phoni.${rrepair_round}.lengths
+     cp ${PATTERN_FILE}.pointers  $LOG_DIR/$filename.phoni.${rrepair_round}.pointers
+     if [[ $rrepair_round -gt 0 ]]; then
+	 echo -n "$basestats type=mscheck "
+	 echo "check=\"$(diff -q $LOG_DIR/$filename.phoni.${rrepair_round}.lengths $LOG_DIR/$filename.phoni.0.lengths)\""
+     fi
+ done # for rrepair
 
 
-done
+done # for dataset
 
 
 
