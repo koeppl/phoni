@@ -29,6 +29,25 @@ cd build; cmake ..
 make
 ```
 
+### Run
+
+After building, the `build` directory should contain several python scripts for building the index data structures:
+
+ - `moni` for building all MONI data structures 
+ - `no_thresholds` : `moni` except computing the thresholds
+ - `thresholds`: compute only the thresholds
+
+The syntax of all these scripts is the same as described in [https://github.com/maxrossi91/moni](MONI).
+All these scripts create auxiliary files of a given text `text.fa` whose filenames consists of an additional file extension of `text.fa`.
+
+Finally, to run `phoni`, we first build the RLBWT and its auxiliary data structures with `./test/src/build_phoni -f text.fa`.
+Then we can run `./test/src/phoni -f text.fa -p pattern.fa` to compute the matching statistics of `pattern.fa` within the text `text.fa`.
+
+### python Tools
+
+ - `prefixpattern.py`: takes the x% prefix of each pattern stored in a `.fa` file and outputs a new `.fa` file to stdout
+ - `splitpattern.py`: splits a `.fa` file into individual sequences stored in a directory given as program parameter (we need this for `msfast` as it does not support reading `.fa` files)
+
 ### Benchmarks
 
 In our experiments we used the file
@@ -41,7 +60,7 @@ as our pattern dataset.
 We have a shell script `benchmark.sh` for an automatic benchmark.
 For this to work, some variables in it has to be set, as this project does not ship with the other matching statistic algorithms, namely
 
- - [[https://github.com/maxrossi91/moni](MONI)
+ - [https://github.com/maxrossi91/moni](MONI)
  - [https://github.com/odenas/indexed_ms](msfast), and
  - [https://github.com/apachecom/rrepair](rrepair).
 
