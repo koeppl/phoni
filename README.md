@@ -53,7 +53,7 @@ Then we can run `./test/src/phoni -f text.fa -p pattern.fa` to compute the match
 
 We provide a script and benchmark files to evaluate PHONI in the setting as described in the paper
 
-Christina Boucher, Travis Gagie, Tomohiro I, Dominik Köppl, Ben Langmead, Giovanni Manzini, Gonzalo Navarro, Alejandro Pacheco, Massimiliano Rossi: [https://arxiv.org/abs/2011.05610](PHONI: Streamed Matching Statistics with Multi-Genome References), arXiv:2011.05610, 11 Nov 2020
+Christina Boucher, Travis Gagie, Tomohiro I, Dominik Köppl, Ben Langmead, Giovanni Manzini, Gonzalo Navarro, Alejandro Pacheco, Massimiliano Rossi: PHONI: Streamed Matching Statistics with Multi-Genome References, [https://arxiv.org/abs/2011.05610](arXiv:2011.05610), 11 Nov 2020
 
 In our experiments we used the file
 
