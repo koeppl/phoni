@@ -1,8 +1,9 @@
 # PHONI 
-## - Practical Heuristic ON Incremental matching statistics computation
+(Practical Heuristic ON Incremental matching statistics computation)
 
 This framework supports the currently memory-friendliest way to compute the matching statistics of a pattern on highly-repetitive texts,
-given that the input text is precomputed with the [https://github.com/maxrossi91/moni](MONI) index.
+given that the input text is precomputed with the [https://github.com/maxrossi91/moni](MONI) index 
+(more precisely, we need all ingredients of MONI except the thresholds).
 
 We require the pattern and the text to be available in form of sequences stored in the `.fa` (FASTA) format.
 To use our solution, you need to have recent `cmake`, `g++`, `zsh`, and `python 3` installed.
@@ -50,12 +51,14 @@ Then we can run `./test/src/phoni -f text.fa -p pattern.fa` to compute the match
 
 ### Benchmarks
 
+We provide a script and benchmark files to evaluate PHONI in the setting as described in the paper
+
+Christina Boucher, Travis Gagie, Tomohiro I, Dominik Köppl, Ben Langmead, Giovanni Manzini, Gonzalo Navarro, Alejandro Pacheco, Massimiliano Rossi: [https://arxiv.org/abs/2011.05610](PHONI: Streamed Matching Statistics with Multi-Genome References), arXiv:2011.05610, 11 Nov 2020
+
 In our experiments we used the file
 
  - [http://dolomit.cs.tu-dortmund.de/chr19.1000.fa.xz](chr19.1000.fa.xz) as our text dataset, and
- - [http://dolomit.cs.tu-dortmund.de/chr19.10.fa.xz](chr19.10.fa.xz) 
-
-as our pattern dataset.
+ - [http://dolomit.cs.tu-dortmund.de/chr19.10.fa.xz](chr19.10.fa.xz) as our pattern dataset.
 
 We have a shell script `benchmark.sh` for an automatic benchmark.
 For this to work, some variables in it has to be set, as this project does not ship with the other matching statistic algorithms, namely
@@ -64,7 +67,8 @@ For this to work, some variables in it has to be set, as this project does not s
  - [https://github.com/odenas/indexed_ms](msfast), and
  - [https://github.com/apachecom/rrepair](rrepair).
 
-meaning it is necessary to download and compile those projects individually, and the set the corresponding variables in `benchmark.sh` manually.
+meaning it is necessary to download and compile those projects individually, and the set the corresponding variables in `benchmark.sh` manually
+(more precisely: in the switch-case statement for the hostname in the beginning).
 Finally, the output of `benchmark.sh` can be processed by [https://github.com/koeppl/sqlplot](sqlplots) to generate the plots shown in the paper.
 
 To compute the naive PHONI variant evaluated in the paper, simple exchange `lceToRBounded` with `lceToR_NaiveBounded` in the file `include/ms/phoni.hpp`.
