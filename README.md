@@ -18,7 +18,7 @@ We need the following python 3 packages for extracting and concatenating `.fa` f
 
 
 ```console
-git clone --branch phoni https://github.com/maxrossi91/moni
+git clone --branch phoni https://github.com/koeppl/phoni
 ```
 
 ### Compile
