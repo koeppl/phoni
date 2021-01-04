@@ -12,6 +12,8 @@ replacements=(
 '^malloc_count ### exiting.* peak: \([0-9.,]\+\),.*' 'mem'
 '^Wall Time:\s\+\([0-9]\+\)' 'time'
 '^Max Memory:\s\+\([0-9]\+\)' 'mrs'
+'^Time backwardsearch:\s\+\([0-9]\+\)' 'timebackwardsearch'
+'^Time lce:\s\+\([0-9]\+\)' 'timelce'
 )
 replacements_it=1
 while [[ $replacements_it -lt $#replacements ]]; do
