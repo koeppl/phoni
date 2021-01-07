@@ -27,8 +27,10 @@
 
 /** FLAGS **/
 #define MEASURE_TIME 1  //measure the time for LCE and backward search?
-//#define NAIVE_LCE_SCHEDULE //stupidly execute two LCEs without heurstics
-#define SORT_BY_DISTANCE_HEURISTIC 1 // apply a heuristic to compute the LCE with the closer BWT position first
+#define NAIVE_LCE_SCHEDULE //stupidly execute two LCEs without heurstics
+#ifndef NAIVE_LCE_SCHEDULE //apply a heuristic
+//#define SORT_BY_DISTANCE_HEURISTIC 1 // apply a heuristic to compute the LCE with the closer BWT position first
+#endif
 
 #ifndef DCHECK_HPP
 #define DCHECK_HPP
@@ -430,11 +432,13 @@ public:
 						return compute_preceding_lce();
 					}
 #ifdef NAIVE_LCE_SCHEDULE 
-					const Triplet a = compute_preceding_lce();
-					const Triplet b = compute_succeeding_lce();
-					if(a.len < b.len) { return b; }
-					return a;
-#endif //NAIVE_LCE_SCHEDULE
+					{
+						const Triplet a = compute_preceding_lce();
+						const Triplet b = compute_succeeding_lce();
+						if(a.len < b.len) { return b; }
+						return a;
+					}
+#else //NAIVE_LCE_SCHEDULE
 #ifdef SORT_BY_DISTANCE_HEURISTIC
 					if(pos - sa0 > sa1 - pos) {
 #else
@@ -459,6 +463,7 @@ public:
 					const Triplet b = (*eval_second)();
 					if(b.len > a.len) { return b; }
 					return a;
+#endif //NAIVE_LCE_SCHEDULE
 				}();
 
                 // if(len0 < len1) {
