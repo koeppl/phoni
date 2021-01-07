@@ -91,7 +91,7 @@ for filename in $datasets; do
 	test -e $dataset
 	rawdataset=$dataset.raw
 
-	basestats="RESULT pattern=${PATTERN_FILE} file=${filename} "
+	basestats="RESULT patternfile=${PATTERN_FILE} file=${filename} "
 
 	if [[ ! -e $dataset.bwt ]]; then 
 		stats="$basestats type=baseconstruction "
