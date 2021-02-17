@@ -182,7 +182,7 @@ public:
 
 
         this->r = this->bwt.number_of_runs();
-        // ri::ulint n = this->bwt.size();
+        ri::ulint n = this->bwt.size();
         // int log_r = bitsize(uint64_t(this->r));
         int log_n = bitsize(uint64_t(this->bwt.size()));
 
@@ -193,8 +193,8 @@ public:
 
 
 
-        read_samples(filename + ".ssa", this->r, log_n, samples_start);
-        read_samples(filename + ".esa", this->r, log_n, this->samples_last);
+        read_samples(filename + ".ssa", this->r, n, samples_start);
+        read_samples(filename + ".esa", this->r, n, this->samples_last);
 
 
         std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
@@ -227,9 +227,9 @@ public:
 
 
 
-    void read_samples(std::string filename, ulint r, int log_n, int_vector<> &samples)
+    void read_samples(std::string filename, ulint r, ulint n, int_vector<> &samples)
     {
-
+        int log_n = bitsize(uint64_t(n));
         struct stat filestat;
         FILE *fd;
 
@@ -256,7 +256,7 @@ public:
         size_t i = 0;
         while (fread((char *)&left, SSABYTES, 1, fd) && fread((char *)&right, SSABYTES, 1,fd))
         {
-            ulint val = (right ? right - 1 : r - 1);
+            ulint val = (right ? right - 1 : n - 1);
             assert(bitsize(uint64_t(val)) <= log_n);
             samples[i++] = val;
         }
