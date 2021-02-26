@@ -25,7 +25,10 @@ done
 replacements=(
 '^Time backwardsearch:\s\+\([0-9]\+\)' 'timebackwardsearch'
 '^Time lce:\s\+\([0-9]\+\)' 'timelce'
+'^Count lce:\s\+\([0-9]\+\)' 'countlce'
+'^Count lce skips:\s\+\([0-9]\+\)' 'countlceskips'
 )
+
 replacements_it=1
 while [[ $replacements_it -lt $#replacements ]]; do
     ((subst_it=replacements_it+1))

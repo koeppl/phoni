@@ -27,9 +27,9 @@
 
 /** FLAGS **/
 #define MEASURE_TIME 1  //measure the time for LCE and backward search?
-#define NAIVE_LCE_SCHEDULE //stupidly execute two LCEs without heurstics
+//#define NAIVE_LCE_SCHEDULE 1 //stupidly execute two LCEs without heurstics
 #ifndef NAIVE_LCE_SCHEDULE //apply a heuristic
-//#define SORT_BY_DISTANCE_HEURISTIC 1 // apply a heuristic to compute the LCE with the closer BWT position first
+#define SORT_BY_DISTANCE_HEURISTIC 1 // apply a heuristic to compute the LCE with the closer BWT position first
 #endif
 
 #ifndef DCHECK_HPP
@@ -332,7 +332,10 @@ public:
 		#ifdef MEASURE_TIME
 		double time_lce = 0;
 		double time_backwardstep = 0;
+		size_t count_lce_total = 0;
+		size_t count_lce_skips = 0;
 		#endif
+
 
         for (size_t i = 1; i < m; ++i) {
             const auto c = pattern_at(m - i - 1);
@@ -390,6 +393,7 @@ public:
                     const size_t lenStart = textposStart+1 >= n ? 0 : lceToRBounded(slp, textposStart+1, last_ref, last_len);
 					#ifdef MEASURE_TIME
 					time_lce += s.seconds();
+					++count_lce_total;
 					#endif
                     // ON_DEBUG(
                     //         const size_t textposLast = this->samples_last[run1];
@@ -414,6 +418,7 @@ public:
                     const size_t lenLast = textposLast+1 >= n ? 0 : lceToRBounded(slp, textposLast+1, last_ref, last_len);
 					#ifdef MEASURE_TIME
 					time_lce += s.seconds();
+					++count_lce_total;
 					#endif
                     // ON_DEBUG( //sanity check
                     //         const size_t textposStart = this->samples_start[run0];
@@ -441,14 +446,19 @@ public:
 					}
 #else //NAIVE_LCE_SCHEDULE
 #ifdef SORT_BY_DISTANCE_HEURISTIC
-					if(pos - sa0 > sa1 - pos) {
+					//! give priority to the LCE with the closer BWT position 
+					if(pos - sa0 < sa1 - pos) {
 #else
+					//! always evaluate the LCE with the preceding BWT position first
 					if(true) {
 #endif//SORT_BY_DISTANCE_HEURISTIC
 						auto eval_first = &compute_preceding_lce;
 						auto eval_second = &compute_succeeding_lce;
 						const Triplet a = (*eval_first)();
 						if(last_len <= a.len) {
+							#ifdef MEASURE_TIME
+							++count_lce_skips;
+							#endif
 							return a;
 						} 
 						const Triplet b = (*eval_second)();
@@ -459,6 +469,9 @@ public:
 					auto eval_second = &compute_preceding_lce;
 					const Triplet a = (*eval_first)();
 					if(last_len <= a.len) {
+						#ifdef MEASURE_TIME
+						++count_lce_skips;
+						#endif
 						return a;
 					} 
 					const Triplet b = (*eval_second)();
@@ -494,6 +507,8 @@ public:
 		#ifdef MEASURE_TIME
 		cout << "Time backwardsearch: " << time_backwardstep << std::endl;
 		cout << "Time lce: " << time_lce << std::endl;
+		cout << "Count lce: " << count_lce_total << std::endl;
+		cout << "Count lce skips: " << count_lce_skips << std::endl;
 		#endif
         return m;
     }
