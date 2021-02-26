@@ -114,9 +114,10 @@ using Vlc64 = VlcVec<sdsl::coder::elias_delta, 64>;
 using Vlc128 = VlcVec<sdsl::coder::elias_delta, 128>;
 
 
-template <class sparse_bv_type = ri::sparse_sd_vector,
-          class rle_string_t = ms_rle_string_sd,
-          class SlpT = SelfShapedSlp<var_t, DagcSd, DagcSd, SelSd>
+template <
+      class SlpT = SelfShapedSlp<var_t, DagcSd, DagcSd, SelSd>,
+      class sparse_bv_type = ri::sparse_sd_vector,
+      class rle_string_t = ms_rle_string_sd
           >
 class ms_pointers : ri::r_index<sparse_bv_type, rle_string_t>
 {

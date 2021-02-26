@@ -45,23 +45,13 @@ std::vector<std::string> read_pattern_desc(const std::string& patternpath) {
       is.read(reinterpret_cast<char*>(&i), sizeof(size_t));
     }
 
-int main(int argc, char *const argv[]) {
-  Args args;
-  parseArgs(argc, argv, args);
 
-#ifdef NDEBUG
-  verbose("RELEASE build");
-#else
-  verbose("DEBUG build");
-#endif
-
-  verbose("Memory peak: ", malloc_count_peak());
-
+template<class matchingstats> 
+void run(const Args& args) {
   verbose("Deserializing the PHONI index");
   std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
 
-
-  ms_pointers<> ms;
+  matchingstats ms;
   {
     ifstream in(args.filename + ".phoni");
     ms.load(in, args.filename);
@@ -151,6 +141,28 @@ int main(int argc, char *const argv[]) {
 
   verbose("Memory peak: ", malloc_count_peak());
   verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
+}
+
+int main(int argc, char *const argv[]) {
+  Args args;
+  parseArgs(argc, argv, args);
+
+#ifdef NDEBUG
+  verbose("RELEASE build");
+#else
+  verbose("DEBUG build");
+#endif
+
+  verbose("Memory peak: ", malloc_count_peak());
+
+  if(args.grammar == "naive") {
+  verbose("using naive grammar");
+  run<ms_pointers<PlainSlp<var_t, Fblc, Fblc>> >(args);
+  } else {
+  verbose("using default grammar");
+  run<ms_pointers<> >(args);
+    }
+
 
   auto mem_peak = malloc_count_peak();
   verbose("Memory peak: ", malloc_count_peak());

@@ -32,11 +32,28 @@ RREPAIR_BULIDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/rrepair/build/
 PATTERN_FILE=$DATASET_DIR/10_samples.fa
 LOG_DIR=$HOME/fast/log/
 
+SOLCA_DIR=TODO
+
+elif [[ $(hostname) = "eris" ]]; then
+
+PHONI_ROOTDIR=$HOME/code/phoni
+PHONI_BULIDDIR=$PHONI_ROOTDIR/build
+DATASET_DIR='/scratch/data/moni'
+# INDEXEDMS_BUILDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/indexed_ms/fast_ms/bin/
+# RREPAIR_BULIDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/rrepair/build/
+PATTERN_FILE=$DATASET_DIR/yeast.fasta
+datasets=(coronavirus.fa)
+LOG_DIR=/scratch/log
+
+SOLCA_DIR=$HOME/src/solca
+
 else 
 	die "need setting for host $hostname"
 fi
 
 [[ -n $1 ]] && PATTERN_FILE="$1"
+
+mkdir -p $LOG_DIR || die "cannot create $LOG_DIR for logging"
 
 base_prg=$PHONI_BULIDDIR/no_thresholds
 thresholds_prg=$PHONI_BULIDDIR/thresholds
@@ -44,6 +61,9 @@ rrepair_prg=$RREPAIR_BULIDDIR/rrepair
 bigrepair_prg=$PHONI_BULIDDIR/_deps/bigrepair-src/bigrepair
 slpenc_prg=$PHONI_BULIDDIR/_deps/shaped_slp-build/SlpEncBuild
 readlog_prg=$PHONI_ROOTDIR/readlog.sh
+
+solca_prg=$SOLCA_DIR/src/compress
+[[ ! -x $solca_prg ]] && die "solca not found at $solca_prg"
 
 indexedms_index_prg=$INDEXEDMS_BUILDDIR/dump_cst.x
 indexedms_query_prg=$INDEXEDMS_BUILDDIR/matching_stats_parallel.x
@@ -121,116 +141,132 @@ for filename in $datasets; do
 	_basestats=$basestats
 
 	
- #############
- ## BEGIN MONI
- #############
+#  #############
+#  ## BEGIN MONI
+#  #############
+#  
+#  if [[ ! -e $dataset.thr ]]; then
+#  	stats="$basestats type=thresholds "
+#  	logFile=$LOG_DIR/$filename.thresholds.log
+#  	set -x
+#  	Time $thresholds_prg -f $dataset > "$logFile" 2>&1
+#  	set +x
+#  	echo -n "$stats"
+#  	echo -n "thressize=$(stat --format="%s" $dataset.thr) "
+#  	echo -n "thrpossize=$(stat --format="%s" $dataset.thr_pos) "
+#  	$readlog_prg $logFile
+#  fi
+#
+#  if [[ ! -e $dataset.ms ]]; then
+#  stats="$basestats type=monibuild "
+#  logFile=$LOG_DIR/$filename.monibuild.log
+#  set -x
+#  Time $monibuild_prg -f $dataset -p $PATTERN_FILE > "$logFile" 2>&1
+#  set +x
+#  echo -n "$stats"
+#  $readlog_prg $logFile
+#  fi
+#  
+#  stats="$basestats type=moni "
+#  logFile=$LOG_DIR/$filename.moni.log
+#  set -x
+#  Time $moni_prg -f $dataset -p $PATTERN_FILE > "$logFile" 2>&1
+#  set +x
+#  echo -n "$stats"
+#  $readlog_prg $logFile
+#  
+#  ###########
+#  ## END MONI
+#  ###########
  
- if [[ ! -e $dataset.thr ]]; then
- 	stats="$basestats type=thresholds "
- 	logFile=$LOG_DIR/$filename.thresholds.log
- 	set -x
- 	Time $thresholds_prg -f $dataset > "$logFile" 2>&1
- 	set +x
- 	echo -n "$stats"
- 	echo -n "thressize=$(stat --format="%s" $dataset.thr) "
- 	echo -n "thrpossize=$(stat --format="%s" $dataset.thr_pos) "
- 	$readlog_prg $logFile
+ ##############
+ ## BEGIN SOLCA
+ ##############
+ 
+ if [[ ! -e $rawdataset.solca ]]; then
+	 stats="$basestats type=solca "
+	 logFile=$LOG_DIR/$filename.solca.log
+	 set -x
+	 Time $solca_prg -i ${rawdataset} -o ${rawdataset}.solca -n 1 > "$logFile" 2>&1
+	 set +x
+	 echo -n "$stats"
+	 echo -n "size=$(stat --format="%s" ${rawdataset}.solca) "
+	 $readlog_prg $logFile
  fi
 
- if [[ ! -e $dataset.ms ]]; then
- stats="$basestats type=monibuild "
- logFile=$LOG_DIR/$filename.monibuild.log
+ ############
+ ## END SOLCA
+ ############
+
+ basestats="$_basestats"
+
+if [[ ! -e ${rawdataset}.C ]]; then
+ logFile=$LOG_DIR/$filename.repair.log
+ stats="$basestats type=repair "
+
  set -x
- Time $monibuild_prg -f $dataset -p $PATTERN_FILE > "$logFile" 2>&1
+ Time $bigrepair_prg $rawdataset > "$logFile" 2>&1
  set +x
+
  echo -n "$stats"
+ echo -n "Csize=$(stat --format="%s" $rawdataset.C) Rsize=$(stat --format="%s" $rawdataset.R) "
  $readlog_prg $logFile
- fi
- 
- stats="$basestats type=moni "
- logFile=$LOG_DIR/$filename.moni.log
- set -x
- Time $moni_prg -f $dataset -p $PATTERN_FILE > "$logFile" 2>&1
- set +x
- echo -n "$stats"
- $readlog_prg $logFile
- 
- ###########
- ## END MONI
- ###########
+fi
 
- # rrepair_round = 0 : standard BigRepair
- # rrepair_round > 0 : apply rrepair `rrepair_round` times on the input text
- for rrepair_round in $(seq 0 2); do
-     basestats="$_basestats rrepair=$rrepair_round "
-     if [[ $rrepair_round -eq 0 ]]; then
-	 logFile=$LOG_DIR/$filename.repair.${rrepair_round}.log
-	 stats="$basestats type=repair "
 
-	 set -x
-	 Time $bigrepair_prg $rawdataset > "$logFile" 2>&1
-	 set +x
+if [[ ! -e $dataset.phoni ]]; then
+	logFile=$LOG_DIR/$filename.phonibuild.log
+	stats="$basestats type=phonibuild "
+	set -x
+	Time $phonibuild_prg -f "$dataset" > "$logFile" 2>&1
+	set +x
+	echo -n "$stats"
+	echo -n "phonisize=$(stat --format="%s" $dataset.phoni) "
+	$readlog_prg $logFile
+fi
 
-	 echo -n "$stats"
-	 echo -n "Csize=$(stat --format="%s" $rawdataset.C) Rsize=$(stat --format="%s" $rawdataset.R) "
-	 $readlog_prg $logFile
+for phoni_param in 'none' 'solca' 'solcanaive' 'naive'; do
 
-	 logFile=$LOG_DIR/$filename.grammar.${rrepair_round}.log
-	 stats="$basestats type=grammar "
-	 set -x
-	 Time $slpenc_prg -e SelfShapedSlp_SdSd_Sd -f Bigrepair -i $rawdataset -o $dataset.slp > "$logFile" 2>&1
-	 set +x
-	 echo -n "$stats"
-	 echo -n "slpsize=$(stat --format="%s" $dataset.slp) "
-	 $readlog_prg $logFile
-     else 
-	 logFile=$LOG_DIR/$filename.repair.${rrepair_round}.log
-	 stats="$basestats type=repair "
+	if [[ $phoni_param = 'solca' ]] || [[ $phoni_param = 'naivesolca' ]]; then
+		grammarinfile=${rawdataset}.solca
+		grammartype=solca
+	else
+		grammarinfile=${rawdataset}
+		grammartype=Bigrepair
+	fi
 
-	 cd $(dirname $rrepair_prg)
-	 set -x
-	 Time $rrepair_prg $rawdataset 10 100 $rrepair_round 100000000 > "$logFile" 2>&1
-	 set +x
+	if [[ $phoni_param = 'none' ]] || [[ $phoni_param = 'solca' ]]; then
+		grammarencoding='SelfShapedSlp_SdSd_Sd'
+		phoniexecparam=''
+	else
+		grammarencoding='PlainSlp_FblcFblc'
+		phoniexecparam='-g naive'
+	fi
 
-	 echo -n "$stats"
-	 echo -n "Csize=$(stat --format="%s" $rawdataset.C) Rsize=$(stat --format="%s" $rawdataset.R) "
-	 $readlog_prg $logFile
+	logFile=$LOG_DIR/$filename.grammar.${phoni_param}.log
+	stats="$basestats type=grammar param=${phoni_param} "
+	set -x
+	Time $slpenc_prg -e ${grammarencoding}  -f ${grammartype} -i ${grammarinfile} -o $dataset.slp > "$logFile" 2>&1
+	set +x
+	echo -n "$stats"
+	echo -n "slpsize=$(stat --format="%s" $dataset.slp) "
+	$readlog_prg $logFile
 
-	 logFile=$LOG_DIR/$filename.grammar.${rrepair_round}.log
-	 stats="$basestats type=grammar "
-	 set -x
-	 Time $slpenc_prg -e SelfShapedSlp_SdSd_Sd -f rrepair -i $rawdataset -o $dataset.slp > "$logFile" 2>&1
-	 set +x
-	 echo -n "$stats"
-	 echo -n "slpsize=$(stat --format="%s" $dataset.slp) "
-	 $readlog_prg $logFile
-     fi
-
-     if [[ ! -e $dataset.phoni ]]; then
-	 logFile=$LOG_DIR/$filename.phonibuild.${rrepair_round}.log
-	 stats="$basestats type=phonibuild "
-	 set -x
-	 Time $phonibuild_prg -f "$dataset" > "$logFile" 2>&1
-	 set +x
-	 echo -n "$stats"
-	 echo -n "phonisize=$(stat --format="%s" $dataset.phoni) "
-	 $readlog_prg $logFile
-     fi
-
-     logFile=$LOG_DIR/$filename.phoni.${rrepair_round}.log
-     stats="$basestats type=phoni "
+     logFile=$LOG_DIR/$filename.phoni.log
+     stats="$basestats type=phoni param=${phoni_param} "
      set -x
-     Time $phoni_prg -f "$dataset" -p ${PATTERN_FILE}  > "$logFile" 2>&1
+     Time $phoni_prg -f "$dataset" $(echo ${phoniexecparam}) -p ${PATTERN_FILE}  > "$logFile" 2>&1
      set +x
      echo -n "$stats"
      $readlog_prg $logFile
-     cp ${PATTERN_FILE}.lengths $LOG_DIR/$filename.phoni.${rrepair_round}.lengths
-     cp ${PATTERN_FILE}.pointers  $LOG_DIR/$filename.phoni.${rrepair_round}.pointers
-     if [[ $rrepair_round -gt 0 ]]; then
-	 echo -n "$basestats type=mscheck "
-	 echo "check=\"$(diff -q $LOG_DIR/$filename.phoni.${rrepair_round}.lengths $LOG_DIR/$filename.phoni.0.lengths)\""
+     cp ${PATTERN_FILE}.lengths $LOG_DIR/$filename.phoni.${phoni_param}.lengths
+     cp ${PATTERN_FILE}.pointers  $LOG_DIR/$filename.phoni.${phoni_param}.pointers
+
+     if [[ $phoni_param != 'none' ]]; then
+	     echo -n "$basestats type=mscheck param=${phoni_param} "
+	     echo "check=\"$(diff -q $LOG_DIR/$filename.phoni.none.lengths $LOG_DIR/$filename.phoni.${phoni_param}.lengths)\""
      fi
- done # for rrepair
+ done # for phoni_param
 
 
 done # for dataset
