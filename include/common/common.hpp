@@ -327,6 +327,7 @@ void LCP_array_cyclic_text(S* s, const std::vector<T>& isa, const std::vector<T>
 struct Args
 {
   std::string filename = "";
+  std::string grammar = "";
   size_t w = 10; // sliding window size and its default
   bool store = false; // store the data structure in the file
   bool memo  = false; // print the memory usage
@@ -342,7 +343,7 @@ void parseArgs(int argc, char *const argv[], Args &arg)
   extern char *optarg;
   extern int optind;
 
-  std::string usage("usage: " + std::string(argv[0]) + " infile [-s store] [-m memo] [-c csv] [-p patterns] [-f fasta] [-r rle]\n\n" +
+  std::string usage("usage: " + std::string(argv[0]) + " infile [-s store] [-m memo] [-c csv] [-p patterns] [-f fasta] [-r rle] [-g grammar]\n\n" +
                     "Computes the pfp data structures of infile, provided that infile.parse, infile.dict, and infile.occ exists.\n" +
                     "  wsize: [integer] - sliding window size (def. 10)\n" +
                     "  store: [boolean] - store the data structure in infile.pfp.ds. (def. false)\n" +
@@ -350,10 +351,11 @@ void parseArgs(int argc, char *const argv[], Args &arg)
                     "  fasta: [boolean] - the input file is a fasta file. (def. false)\n" +
                     "    rle: [boolean] - output run length encoded BWT. (def. false)\n" +
                     "pattens: [string]  - path to patterns file.\n" +
+                    "grammar: [string]  - options for the grammar.\n" +
                     "    csv: [boolean] - print the stats in csv form on strerr. (def. false)\n");
 
   std::string sarg;
-  while ((c = getopt(argc, argv, "w:smcfrhp:")) != -1)
+  while ((c = getopt(argc, argv, "w:smcfrhp:g:")) != -1)
   {
     switch (c)
     {
@@ -375,6 +377,9 @@ void parseArgs(int argc, char *const argv[], Args &arg)
       break;
     case 'p':
       arg.patterns.assign(optarg);
+      break;
+    case 'g':
+      arg.grammar.assign(optarg);
       break;
     case 'f':
       arg.is_fasta = true;
