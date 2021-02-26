@@ -24,13 +24,13 @@ LOG_DIR=$HOME/log/
 
 elif [[ $(hostname) = "elm" ]]; then
 
-PHONI_ROOTDIR=/s/nut/a/homes/dominik.koeppl/code/pfp/moni/ 
+PHONI_ROOTDIR='/s/elm/a/bio/dominik.koeppl/code/phoni'
 PHONI_BULIDDIR=$PHONI_ROOTDIR/build
-DATASET_DIR='/s/nut/a/homes/dominik.koeppl/fast/data'
+DATASET_DIR='/s/elm/a/bio/dominik.koeppl/data'
 INDEXEDMS_BUILDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/indexed_ms/fast_ms/bin/
 RREPAIR_BULIDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/rrepair/build/
 PATTERN_FILE=$DATASET_DIR/10_samples.fa
-LOG_DIR=$HOME/fast/log/
+LOG_DIR=/s/elm/a/bio/dominik.koeppl/log
 
 SOLCA_DIR=TODO
 
