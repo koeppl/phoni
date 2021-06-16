@@ -57,8 +57,8 @@ Christina Boucher, Travis Gagie, Tomohiro I, Dominik Köppl, Ben Langmead, Giova
 
 In our experiments we used the file
 
- - [chr19.1000.fa.xz](http://dolomit.cs.tu-dortmund.de/chr19.1000.fa.xz) as our text dataset, and
- - [chr19.10.fa.xz](http://dolomit.cs.tu-dortmund.de/chr19.10.fa.xz) as our pattern dataset.
+ - [chr19.1000.fa.xz](http://dolomit.cs.tu-dortmund.de/tudocomp/chr19.1000.fa.xz) as our text dataset, and
+ - [chr19.10.fa.xz](http://dolomit.cs.tu-dortmund.de/tudocomp/chr19.10.fa.xz) as our pattern dataset.
 
 We have a shell script `benchmark.sh` for an automatic benchmark.
 For this to work, some variables in it has to be set, as this project does not ship with the other matching statistic algorithms, namely
