@@ -26,7 +26,7 @@
 
 
 /** FLAGS **/
-#define MEASURE_TIME 1  //measure the time for LCE and backward search?
+// #define MEASURE_TIME 1  //measure the time for LCE and backward search?
 //#define NAIVE_LCE_SCHEDULE 1 //stupidly execute two LCEs without heurstics
 #ifndef NAIVE_LCE_SCHEDULE //apply a heuristic
 #define SORT_BY_DISTANCE_HEURISTIC 1 // apply a heuristic to compute the LCE with the closer BWT position first
@@ -215,9 +215,16 @@ public:
         {
             verbose("Load Grammar");
             std::chrono::high_resolution_clock::time_point t_insert_start = std::chrono::high_resolution_clock::now();
-
-            ifstream fs(filename + ".slp");
-            slp.load(fs);
+            if (std::is_same<SlpT, PlainSlp<var_t, Fblc, Fblc>>::value)
+            {
+                ifstream fs(filename + ".plain.slp");
+                slp.load(fs);
+                fs.close();
+            }else{
+                ifstream fs(filename + ".slp");
+                slp.load(fs);
+                fs.close();
+            }
 
             std::chrono::high_resolution_clock::time_point t_insert_end = std::chrono::high_resolution_clock::now();
             verbose("Memory peak: ", malloc_count_peak());
@@ -511,6 +518,263 @@ public:
 		cout << "Count lce skips: " << count_lce_skips << std::endl;
 		#endif
         return m;
+    }
+    // Computes the matching statistics pointers for the given pattern
+    std::pair<std::vector<size_t>, std::vector<size_t>> query(const std::vector<uint8_t> &pattern)
+    {
+        size_t m = pattern.size();
+
+        return _query(pattern.data(), m);
+    }
+
+    std::pair<std::vector<size_t>, std::vector<size_t>> query(const char *pattern, const size_t m)
+    {
+        return _query(pattern, m);
+    }
+
+    // Computes the matching statistics pointers for the given pattern
+    template <typename string_t>
+    std::pair<std::vector<size_t>, std::vector<size_t>> _query(const string_t &pattern, const size_t m)
+    {
+
+        auto pattern_at = [&] (const size_t pos) {
+          return pattern[pos];
+        };
+
+        // ifstream p(patternfile);
+        // p.seekg(0,ios_base::end);
+        // const size_t m = p.tellg();
+        //
+        // auto pattern_at = [&] (const size_t pos) {
+        //   p.seekg(pos, ios_base::beg);
+        //   return p.get();
+        // };
+
+
+        std::vector<size_t> lens;
+        std::vector<size_t> refs;
+
+        lens.reserve(m);
+        refs.reserve(m);
+
+        const size_t n = slp.getLen();
+        verbose("Pattern length: ", m);
+        
+        size_t last_len;
+        size_t last_ref;
+
+        auto write_len = [&] (const size_t i) { 
+          last_len = i;
+          lens.push_back(last_len);
+        };
+        auto write_ref = [&] (const size_t i) { 
+          last_ref = i;
+          refs.push_back(last_ref);
+        };
+
+        //TODO: we could allocate the file here and store the numbers *backwards* !
+        ON_DEBUG(std::vector<size_t> ms_references(m,0)); //! stores at (m-i)-th entry the text position of the match with pattern[m-i..] when computing the matching statistics of pattern[m-i-1..]
+        ON_DEBUG(std::vector<size_t> ms_lengths(m,1));
+        ON_DEBUG(ms_lengths[m-1] = 1);
+        write_len(1);
+
+
+        //!todo: we need here a while look in case that we want to support suffixes of the pattern that are not part of the text
+        DCHECK_GT(this->bwt.number_of_letter(pattern_at(m-1)), 0);
+
+        //! Start with the last character
+        auto pos = this->bwt.select(1, pattern_at(m-1));
+        {
+            const ri::ulint run_of_j = this->bwt.run_of_position(pos);
+            ON_DEBUG(ms_references[m-1] = samples_start[run_of_j]);
+            write_ref(samples_start[run_of_j]);
+            DCHECK_EQ(slp.charAt(ms_references[m-1]),  pattern_at(m-1));
+        }
+        pos = LF(pos, pattern_at(m-1));
+
+		#ifdef MEASURE_TIME
+		double time_lce = 0;
+		double time_backwardstep = 0;
+		size_t count_lce_total = 0;
+		size_t count_lce_skips = 0;
+		#endif
+
+
+        for (size_t i = 1; i < m; ++i) {
+            const auto c = pattern_at(m - i - 1);
+            DCHECK_EQ(ms_lengths[m-i], last_len);
+            ON_DEBUG(DCHECK_EQ(ms_references[m-i], last_ref));
+
+			const size_t number_of_runs_of_c = this->bwt.number_of_letter(c);
+            if(number_of_runs_of_c == 0) {
+                ON_DEBUG(ms_lengths[m-i-1] = 0);
+                write_len(0);
+                // write_int(len_file, last_len);
+                lens.push_back(last_len);
+                // std::cout << "2 letter " << c  << " not found for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
+                ON_DEBUG(ms_references[m - i - 1] = 1);
+                write_ref(1);
+            } 
+            else if (pos < this->bwt.size() && this->bwt[pos] == c) {
+                DCHECK_NE(i, 0);
+                ON_DEBUG(ms_lengths[m-i-1] = ms_lengths[m-i]+1);
+                write_len(last_len+1);
+                // std::cout << "0 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << std::endl;
+
+                DCHECK_GT(ms_references[m - i], 0);
+                ON_DEBUG(ms_references[m - i - 1] = ms_references[m - i]-1);
+                DCHECK_GT(last_ref, 0);
+                write_ref(last_ref-1);
+            }
+            else {
+                const ri::ulint rank = this->bwt.rank(pos, c);
+
+				size_t sa0, sa1;
+
+				if(rank > 0) {
+					sa0 = this->bwt.select(rank-1, c);
+					DCHECK_LT(sa0, pos);
+				}
+				if(rank < number_of_runs_of_c) {
+					sa1 = this->bwt.select(rank, c);
+					DCHECK_GT(sa1, pos);
+				}
+				
+				struct Triplet {
+					size_t sa, ref, len;
+				};
+
+				auto compute_succeeding_lce = [&] () -> Triplet {
+                // if(rank < this->bwt.number_of_letter(c)) { // LCE with the succeeding position
+					DCHECK_LT(rank, number_of_runs_of_c);
+
+					const ri::ulint run1 = this->bwt.run_of_position(sa1);
+
+                    const size_t textposStart = this->samples_start[run1];
+					#ifdef MEASURE_TIME
+					Stopwatch s;
+					#endif
+                    const size_t lenStart = textposStart+1 >= n ? 0 : lceToRBounded(slp, textposStart+1, last_ref, last_len);
+					#ifdef MEASURE_TIME
+					time_lce += s.seconds();
+					++count_lce_total;
+					#endif
+                    // ON_DEBUG(
+                    //         const size_t textposLast = this->samples_last[run1];
+                    //         const size_t lenLast = lceToRBounded(slp, textposLast+1, ms_references[m-i]);
+                    //         DCHECK_GT(lenStart, lenLast);
+                    // )
+                    const size_t ref1 = textposStart;
+                    const size_t len1 = lenStart;
+					return {sa1, ref1, len1};
+                };
+
+				auto compute_preceding_lce = [&] () -> Triplet {
+                // if(rank > 0) { // LCE with the preceding position
+					DCHECK_GT(rank, 0);
+
+					const ri::ulint run0 = this->bwt.run_of_position(sa0);
+
+                    const size_t textposLast = this->samples_last[run0];
+					#ifdef MEASURE_TIME
+					Stopwatch s;
+					#endif
+                    const size_t lenLast = textposLast+1 >= n ? 0 : lceToRBounded(slp, textposLast+1, last_ref, last_len);
+					#ifdef MEASURE_TIME
+					time_lce += s.seconds();
+					++count_lce_total;
+					#endif
+                    // ON_DEBUG( //sanity check
+                    //         const size_t textposStart = this->samples_start[run0];
+                    //         const size_t lenStart = lceToRBounded(slp, textposStart+1, ms_references[m-i], ms_lengths[m-1]);
+                    //         DCHECK_LE(lenStart, lenLast);
+                    // )
+                    const size_t ref0 = textposLast;
+                    const size_t len0 = lenLast;
+					return {sa0, ref0, len0};
+                };
+
+				const Triplet c = [&] () -> Triplet {
+					if(rank == 0) {
+						return compute_succeeding_lce();
+					}
+					else if(rank >= number_of_runs_of_c) {
+						return compute_preceding_lce();
+					}
+#ifdef NAIVE_LCE_SCHEDULE 
+					{
+						const Triplet a = compute_preceding_lce();
+						const Triplet b = compute_succeeding_lce();
+						if(a.len < b.len) { return b; }
+						return a;
+					}
+#else //NAIVE_LCE_SCHEDULE
+#ifdef SORT_BY_DISTANCE_HEURISTIC
+					//! give priority to the LCE with the closer BWT position 
+					if(pos - sa0 < sa1 - pos) {
+#else
+					//! always evaluate the LCE with the preceding BWT position first
+					if(true) {
+#endif//SORT_BY_DISTANCE_HEURISTIC
+						auto eval_first = &compute_preceding_lce;
+						auto eval_second = &compute_succeeding_lce;
+						const Triplet a = (*eval_first)();
+						if(last_len <= a.len) {
+							#ifdef MEASURE_TIME
+							++count_lce_skips;
+							#endif
+							return a;
+						} 
+						const Triplet b = (*eval_second)();
+						if(b.len > a.len) { return b; }
+						return a;
+					} 
+					auto eval_first = &compute_succeeding_lce;
+					auto eval_second = &compute_preceding_lce;
+					const Triplet a = (*eval_first)();
+					if(last_len <= a.len) {
+						#ifdef MEASURE_TIME
+						++count_lce_skips;
+						#endif
+						return a;
+					} 
+					const Triplet b = (*eval_second)();
+					if(b.len > a.len) { return b; }
+					return a;
+#endif //NAIVE_LCE_SCHEDULE
+				}();
+
+                // if(len0 < len1) {
+                //     len0 = len1;
+                //     ref0 = ref1;
+                //     sa0 = sa1;
+                // }
+                    
+				DCHECK_GT(c.ref, 0);
+                ON_DEBUG(ms_lengths[m-i-1] = 1 + std::min(ms_lengths[m-i], c.len));
+                write_len(1 + std::min(last_len, c.len));
+                ON_DEBUG(ms_references[m-i-1] = c.ref);
+                write_ref(c.ref);
+                pos = c.sa;
+
+                DCHECK_GT(ms_lengths[m-i-1], 0);
+                // std::cout << "1 Len for " << (m-i-1) << " : " << ms_lengths[m-i-1] << " with LCE " << std::max(len1,len0) << std::endl;
+            }
+			#ifdef MEASURE_TIME
+			Stopwatch s;
+			#endif
+            pos = LF(pos, c); //! Perform one backward step
+			#ifdef MEASURE_TIME
+			time_backwardstep += s.seconds();
+			#endif
+        }
+		#ifdef MEASURE_TIME
+		cout << "Time backwardsearch: " << time_backwardstep << std::endl;
+		cout << "Time lce: " << time_lce << std::endl;
+		cout << "Count lce: " << count_lce_total << std::endl;
+		cout << "Count lce skips: " << count_lce_skips << std::endl;
+		#endif
+        return std::make_pair(lens,refs);
     }
 
     /*

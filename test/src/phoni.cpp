@@ -30,20 +30,9 @@
 
 #include <malloc_count.h>
 
+#include <kseq.h>
+#include <zlib.h>
 
-std::vector<std::string> read_pattern_desc(const std::string& patternpath) {
-  std::vector<std::string> descs;
-  ifstream is(patternpath + "desc.txt");
-  std::string line;
-  while (std::getline(is, line)) {
-    descs.push_back(line);
-  }
-  return descs;
-}
-
-   inline static void read_int(istream& is, size_t& i){
-      is.read(reinterpret_cast<char*>(&i), sizeof(size_t));
-    }
 
 
 template<class matchingstats> 
@@ -63,76 +52,89 @@ void run(const Args& args) {
   verbose("Memory peak: ", malloc_count_peak());
   verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
 
-  verbose("Reading patterns");
+  verbose("Processing patterns");
   t_insert_start = std::chrono::high_resolution_clock::now();
-  const std::string patterndir = args.patterns + ".dir/";
 
-  std::vector<std::string> patterndescs = read_pattern_desc(patterndir);
+  FILE *out_fd;
+
+  const std::string tmp_out_filename = std::string(args.patterns) + ".ms.tmp.out";
+
+  if ((out_fd = fopen(tmp_out_filename.c_str(), "w")) == nullptr)
+    error("open() file " + tmp_out_filename + " failed");
+
+  gzFile fp = gzopen(args.patterns.c_str(), "r");
+  kseq_t *seq = kseq_init(fp);
+  int l;
+  while ((l = kseq_read(seq)) >= 0)
+  {
+    auto res = ms.query(seq->seq.s, seq->seq.l);
+
+    size_t q_length = res.first.size();
+    fwrite(&q_length, sizeof(size_t), 1, out_fd);
+    fwrite(res.first.data(), sizeof(size_t), q_length, out_fd);
+    fwrite(res.second.data(), sizeof(size_t), q_length, out_fd);
+  }
+
+  kseq_destroy(seq);
+  gzclose(fp);
+  fclose(out_fd);
 
   t_insert_end = std::chrono::high_resolution_clock::now();
-
   verbose("Memory peak: ", malloc_count_peak());
   verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
 
-  verbose("Processing patterns");
+  verbose("Printing plain output");
   t_insert_start = std::chrono::high_resolution_clock::now();
 
   std::ofstream f_pointers(args.patterns + ".pointers");
   std::ofstream f_lengths(args.patterns + ".lengths");
 
   if (!f_pointers.is_open())
-    error("open() file " + std::string(args.filename) + ".pointers failed");
+    error("open() file " + std::string(args.patterns) + ".pointers failed");
 
   if (!f_lengths.is_open())
-    error("open() file " + std::string(args.filename) + ".lengths failed");
+    error("open() file " + std::string(args.patterns) + ".lengths failed");
 
-  for(size_t patternid = 0; patternid < patterndescs.size(); ++patternid){
-    const std::string& patterndesc = patterndescs[patternid];
-    verbose("Processing pattern ", patterndesc);
-    f_lengths << ">" << patterndesc << " " << endl;
-    f_pointers << ">" << patterndesc << " " << endl;
-    const std::string patternfilename = patterndir +  std::to_string(patternid);
-    //auto [lengths,refs] = 
-    
-    t_insert_start = std::chrono::high_resolution_clock::now();
-    const size_t patternlength = ms.query(patternfilename, std::string(args.filename) + ".binrev.length",  std::string(args.filename) + ".binrev.pointers");
-    t_insert_end = std::chrono::high_resolution_clock::now();
-    verbose("Finished processing pattern ", patterndesc);
-    verbose("Memory peak: ", malloc_count_peak());
-    verbose("Elapsed time (s): ", std::chrono::duration<double, std::ratio<1>>(t_insert_end - t_insert_start).count());
+  FILE *in_fd;
 
+  if ((in_fd = fopen(tmp_out_filename.c_str(), "r")) == nullptr)
+    error("open() file " + tmp_out_filename + " failed");
+
+  size_t n_seq = 0;
+  size_t length = 0;
+  size_t m = 100; // Reserved size for pointers and lengths
+  size_t *mem = (size_t *)malloc(m * sizeof(size_t));
+  while (!feof(in_fd) and fread(&length, sizeof(size_t), 1, in_fd) > 0)
+  {
+    if (m < length)
     {
-      const size_t* len_file;
-      const size_t* ref_file;
-      size_t len_size;
-      size_t ref_size;
-
-      const std::string len_filename = std::string(args.filename) + ".binrev.length";
-      const std::string ref_filename = std::string(args.filename) + ".binrev.pointers";
-
-      map_file(len_filename.c_str(), len_file, len_size);
-      map_file(ref_filename.c_str(), ref_file, ref_size);
-
-      // ifstream len_file(std::string(args.filename) + ".binrev.length", std::ios::binary);
-      // ifstream ref_file(std::string(args.filename) + ".binrev.pointers", std::ios::binary);
-      for(size_t i = 0; i < patternlength; ++i) {
-        const size_t len = len_file[patternlength-i-1];
-        const size_t ref = ref_file[patternlength-i-1];
-        // size_t len;
-        // size_t ref;
-        // len_file.seekg((patternlength-i-1)*sizeof(size_t), std::ios_base::beg);
-        // ref_file.seekg((patternlength-i-1)*sizeof(size_t), std::ios_base::beg);
-        // read_int(len_file, len);
-        // read_int(ref_file, ref);
-        // DCHECK_EQ(lengths[i], len);
-        // DCHECK_EQ(refs[i], ref);
-        f_lengths << len << " ";
-        f_pointers << ref << " ";
-      }
-    f_lengths << endl;
-    f_pointers << endl;
+      // Resize lengths and pointers
+      m = length;
+      mem = (size_t *)realloc(mem, m * sizeof(size_t));
     }
+
+    if ((fread(mem, sizeof(size_t), length, in_fd)) != length)
+      error("fread() file " + std::string(tmp_out_filename) + " failed");
+
+    f_lengths << ">" + std::to_string(n_seq) << endl;
+    for (size_t i = 0; i < length; ++i)
+      f_lengths << mem[length - 1 - i] << " ";
+    f_lengths << endl;
+
+    if ((fread(mem, sizeof(size_t), length, in_fd)) != length)
+      error("fread() file " + std::string(tmp_out_filename) + " failed");
+
+    f_pointers << ">" + std::to_string(n_seq) << endl;
+    for (size_t i = 0; i < length; ++i)
+      f_pointers << mem[length - 1 - i] << " ";
+    f_pointers << endl;
+
+    n_seq++;
   }
+  fclose(in_fd);
+
+  if (std::remove(tmp_out_filename.c_str()) != 0)
+    error("remove() file " + tmp_out_filename + " failed");
 
   f_pointers.close();
   f_lengths.close();
