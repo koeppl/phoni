@@ -75,7 +75,7 @@ pattern_dir=${PATTERN_FILE}.dir
 
 monibuild_prg=$PHONI_BULIDDIR/test/src/rlebwt_ms_build
 moni_prg=$PHONI_BULIDDIR/test/src/rlems
-phoni_prg=$PHONI_BULIDDIR/test/src/phoni
+phoni_prg=$PHONI_BULIDDIR/test/src/phoni_compatibility
 phonibuild_prg=$PHONI_BULIDDIR/test/src/build_phoni
 rlbwt_prg=$PHONI_BULIDDIR/test/src/bwt2rlbwt
 
