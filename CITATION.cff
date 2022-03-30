@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Köppl"
+  given-names: "Dominik"
+  orcid: "http://orcid.org/0000-0002-8721-4444"
+title: "Computing matching statistics with compressed data structures"
+url: "https://github.com/koeppl/phoni"
+preferred-citation:
+  type: conference-paper
+  authors:
+  - family-names: "Boucher"
+    given-names: "Christina"
+  - family-names: "Gagie"
+    given-names: "Travis"
+  - family-names: "I"
+    given-names: "Tomohiro"
+  - family-names: "Köppl"
+    given-names: "Dominik"
+    orcid: "http://orcid.org/0000-0002-8721-4444"
+  - family-names: "Langmead"
+    given-names: "Ben"
+  - family-names: "Manzini"
+    given-names: "Giovanni"
+  - family-names: "Navarro"
+    given-names: "Gonzalo"
+  - family-names: "Pacheco"
+    given-names: "Alejandro"
+  - family-names: "Rossi"
+    given-names: "Massimiliano"
+  doi: 10.1109/DCC50243.2021.00027
+  journal: "Proc. DCC"
+  start: 193  # First page number
+  end: 202 # Last page number
+  title: "PHONI: Streamed Matching Statistics with Multi-Genome References"
+  year: 2021
