@@ -3,10 +3,17 @@
 # Computes an output that is parsable with sqlplot (https://github.com/koeppl/sqlplot)
 # Either hardcode PATTERN_FILE for your `hostname` below, or run the script with the pattern filename as the first argument
 
+# set -e
+# set -x
 function die {
 	echo "$1" >&2
 	exit 1
 }
+
+
+######################
+# CONFIG SECTION START 
+######################
 
 # TODO: the text datasets we want to index: 
 datasets=(chr19.1.fa chr19.16.fa chr19.32.fa chr19.64.fa chr19.100.fa chr19.128.fa chr19.256.fa  chr19.512.fa chr19.1000.fa) 
@@ -18,7 +25,6 @@ PHONI_ROOTDIR=/home/dkoeppl/code/moni
 PHONI_BULIDDIR=$PHONI_ROOTDIR/build
 DATASET_DIR=/home/dkoeppl/data
 INDEXEDMS_BUILDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/indexed_ms/fast_ms/bin/
-RREPAIR_BULIDDIR=/home/dkoeppl/code/rrepair/build/
 PATTERN_FILE=$DATASET_DIR/chr19.10.fa
 LOG_DIR=$HOME/log/
 
@@ -28,7 +34,6 @@ PHONI_ROOTDIR='/s/elm/a/bio/dominik.koeppl/code/phoni'
 PHONI_BULIDDIR=$PHONI_ROOTDIR/build
 DATASET_DIR='/s/elm/a/bio/dominik.koeppl/data'
 INDEXEDMS_BUILDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/indexed_ms/fast_ms/bin/
-RREPAIR_BULIDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/rrepair/build/
 PATTERN_FILE=$DATASET_DIR/10_samples.fa
 LOG_DIR=/s/elm/a/bio/dominik.koeppl/log
 
@@ -38,18 +43,22 @@ elif [[ $(hostname) = "eris" ]]; then
 
 PHONI_ROOTDIR=$HOME/code/phoni
 PHONI_BULIDDIR=$PHONI_ROOTDIR/build
-DATASET_DIR='/scratch/data/moni'
+DATASET_DIR='/scratch/data/matchingstatistics'
 # INDEXEDMS_BUILDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/indexed_ms/fast_ms/bin/
-# RREPAIR_BULIDDIR=/s/nut/a/homes/dominik.koeppl/fast/code/rrepair/build/
-PATTERN_FILE=$DATASET_DIR/yeast.fasta
-datasets=(coronavirus.fa)
+PATTERN_FILE=$DATASET_DIR/lambda_virus.fa
+PATTERN_FILE=$DATASET_DIR/prova.fa
+datasets=(salmonella.10000.fa)
+datasets=(lambda_virus.fa)
 LOG_DIR=/scratch/log
-
 SOLCA_DIR=$HOME/src/solca
 
 else 
 	die "need setting for host $hostname"
 fi
+
+######################
+# CONFIG SECTION END
+######################
 
 [[ -n $1 ]] && PATTERN_FILE="$1"
 
@@ -57,13 +66,16 @@ mkdir -p $LOG_DIR || die "cannot create $LOG_DIR for logging"
 
 base_prg=$PHONI_BULIDDIR/no_thresholds
 thresholds_prg=$PHONI_BULIDDIR/thresholds
-rrepair_prg=$RREPAIR_BULIDDIR/rrepair
 bigrepair_prg=$PHONI_BULIDDIR/_deps/bigrepair-src/bigrepair
 slpenc_prg=$PHONI_BULIDDIR/_deps/shaped_slp-build/SlpEncBuild
 readlog_prg=$PHONI_ROOTDIR/readlog.sh
 
 solca_prg=$SOLCA_DIR/src/compress
-[[ ! -x $solca_prg ]] && die "solca not found at $solca_prg"
+echo -n '\033[0;31m'
+[[ ! -x $solca_prg ]] && echo "WARNING: solca will not be used since not executable: $solca_prg"
+[[ ! -x $indexedms_index_prg ]] && echo "WARNING: indexed_ms will not be used since not executable: $indexedms_index_prg"
+echo '\033[0m'
+
 
 indexedms_index_prg=$INDEXEDMS_BUILDDIR/dump_cst.x
 indexedms_query_prg=$INDEXEDMS_BUILDDIR/matching_stats_parallel.x
@@ -86,9 +98,9 @@ alias Time='/usr/bin/time --format="Wall Time: %e\nMax Memory: %M"'
 set -e
 for filename in $datasets; do
 	dataset=$DATASET_DIR/$filename
-	test -e $dataset
+	test -e $dataset || die "file $dataset not found"
 done
-test -e $PATTERN_FILE
+test -e $PATTERN_FILE || die "pattern file $PATTERN_FILE not found"
 
 if [[ ! -d $pattern_dir ]]; then
 	echo "writing each pattern to $pattern_dir"
@@ -183,7 +195,7 @@ for filename in $datasets; do
  ## BEGIN SOLCA
  ##############
  
- if [[ ! -e $rawdataset.solca ]]; then
+ if [[ -x "$solca_prg" ]] && [[ ! -e $rawdataset.solca ]]; then
 	 stats="$basestats type=solca "
 	 logFile=$LOG_DIR/$filename.solca.log
 	 set -x
@@ -227,9 +239,11 @@ fi
 
 for phoni_param in 'none' 'solca' 'solcanaive' 'naive'; do
 
-	if [[ $phoni_param = 'solca' ]] || [[ $phoni_param = 'naivesolca' ]]; then
+	if [[ $phoni_param = 'solca' ]] || [[ $phoni_param = 'solcanaive' ]]; then
 		grammarinfile=${rawdataset}.solca
 		grammartype=solca
+		# no solca means no gramar file -> skip
+		[[ -x "$solca_prg" ]] || continue
 	else
 		grammarinfile=${rawdataset}
 		grammartype=Bigrepair
@@ -238,15 +252,18 @@ for phoni_param in 'none' 'solca' 'solcanaive' 'naive'; do
 	if [[ $phoni_param = 'none' ]] || [[ $phoni_param = 'solca' ]]; then
 		grammarencoding='SelfShapedSlp_SdSd_Sd'
 		phoniexecparam=''
+		slpfilename="$dataset.slp"
 	else
 		grammarencoding='PlainSlp_FblcFblc'
 		phoniexecparam='-g naive'
+		slpfilename="$dataset.plain.slp"
 	fi
+	echo "$phoni_param"
 
 	logFile=$LOG_DIR/$filename.grammar.${phoni_param}.log
 	stats="$basestats type=grammar param=${phoni_param} "
 	set -x
-	Time $slpenc_prg -e ${grammarencoding}  -f ${grammartype} -i ${grammarinfile} -o $dataset.slp > "$logFile" 2>&1
+	Time $slpenc_prg -e ${grammarencoding}  -f ${grammartype} -i ${grammarinfile} -o "$slpfilename" > "$logFile" 2>&1
 	set +x
 	echo -n "$stats"
 	echo -n "slpsize=$(stat --format="%s" $dataset.slp) "
@@ -276,43 +293,45 @@ done # for dataset
 ##################
 ## START indexedms
 ##################
-basestats="$_basestats"
-for filename in $datasets; do
-	dataset=$DATASET_DIR/$filename
-	test -e $dataset
+if [[ -x "$indexedms_index_prg" ]]; then
+	basestats="$_basestats"
+	for filename in $datasets; do
+		dataset=$DATASET_DIR/$filename
+		test -e $dataset
 
 
-	if [[ ! -r $dataset.raw.fwd.stree ]]; then
+		if [[ ! -r $dataset.raw.fwd.stree ]]; then
 
-		logFile=$LOG_DIR/$filename.indexms.const.log
-		stats="$basestats type=indexedconst "
+			logFile=$LOG_DIR/$filename.indexms.const.log
+			stats="$basestats type=indexedconst "
+
+			set -x
+			Time $indexedms_index_prg -s_path $dataset.raw > "$logFile" 2>&1
+			set +x
+
+			echo -n "$stats"
+			echo -n "fwdsize=$(stat --format="%s" $dataset.raw.fwd.stree) revsize=$(stat --format="%s" $dataset.raw.rev.stree) "
+			$readlog_prg $logFile
+		fi
+
+	for patternseq in $pattern_dir/[0-9]; do
+		patternnumber=$(basename $patternseq)
+		logFile=$LOG_DIR/$filename.indexms.query.${patternnumber}log
+		stats="$basestats type=indexedquery pattern=${patternnumber} "
 
 		set -x
-		Time $indexedms_index_prg -s_path $dataset.raw > "$logFile" 2>&1
+		Time $indexedms_query_prg -s_path $dataset.raw -t_path $patternseq -load_cst 1 > "$logFile" 2>&1
 		set +x
 
 		echo -n "$stats"
-		echo -n "fwdsize=$(stat --format="%s" $dataset.raw.fwd.stree) revsize=$(stat --format="%s" $dataset.raw.rev.stree) "
 		$readlog_prg $logFile
-	fi
+	done
 
-for patternseq in $pattern_dir/[0-9]; do
-	patternnumber=$(basename $patternseq)
-	logFile=$LOG_DIR/$filename.indexms.query.${patternnumber}log
-	stats="$basestats type=indexedquery pattern=${patternnumber} "
-
-	set -x
-	Time $indexedms_query_prg -s_path $dataset.raw -t_path $patternseq -load_cst 1 > "$logFile" 2>&1
-	set +x
-
-	echo -n "$stats"
-	$readlog_prg $logFile
-done
-
-done
+	done
+fi # [[ -x "$indexedms_index_prg" ]]; then
  ##################
  ## END indexedms
  ##################
 
 
-echo "finished"
+echo '\033[0;32mbenchmark.sh finished!\033[0m'
