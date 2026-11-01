@@ -327,7 +327,7 @@ public:
         DCHECK_GT(this->bwt.number_of_letter(pattern_at(m-1)), 0);
 
         //! Start with the last character
-        auto pos = this->bwt.select(1, pattern_at(m-1));
+        auto pos = this->bwt.select(0, pattern_at(m-1));
         {
             const ri::ulint run_of_j = this->bwt.run_of_position(pos);
             ON_DEBUG(ms_references[m-1] = samples_start[run_of_j]);
@@ -583,7 +583,7 @@ public:
         DCHECK_GT(this->bwt.number_of_letter(pattern_at(m-1)), 0);
 
         //! Start with the last character
-        auto pos = this->bwt.select(1, pattern_at(m-1));
+        auto pos = this->bwt.select(0, pattern_at(m-1));
         {
             const ri::ulint run_of_j = this->bwt.run_of_position(pos);
             ON_DEBUG(ms_references[m-1] = samples_start[run_of_j]);
